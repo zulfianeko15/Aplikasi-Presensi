@@ -25,8 +25,8 @@ interface PanduanDeployModalProps {
 }
 
 export default function PanduanDeployModal({ isOpen, onClose }: PanduanDeployModalProps) {
-  const [activeTab, setActiveTab] = useState<'supabase' | 'ringkasan' | 'vps' | 'cloudrun' | 'paas' | 'konfigurasi'>('supabase');
-  const [activeConfigFile, setActiveConfigFile] = useState<'supabase_env' | 'supabase_sql' | 'env' | 'nginx' | 'pm2'>('supabase_env');
+  const [activeTab, setActiveTab] = useState<'supabase' | 'vercel' | 'ringkasan' | 'vps' | 'cloudrun' | 'paas' | 'konfigurasi'>('supabase');
+  const [activeConfigFile, setActiveConfigFile] = useState<'supabase_env' | 'supabase_sql' | 'vercel' | 'env' | 'nginx' | 'pm2'>('supabase_env');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Live Database Connection Status
@@ -85,9 +85,16 @@ APP_URL="https://absensi.sekolah.sch.id"`,
     supabase_sql: {
       name: 'supabase_schema.sql (SQL Editor Supabase)',
       desc: 'Salin script SQL ini ke menu SQL Editor di Dashboard Supabase untuk membuat semua tabel & data awal',
-      code: `-- 1. TABEL PENGGUNA (USERS)
+      code: `-- ====================================================================
+-- SKEMA DATABASE SISTEM ABSENSI SEKOLAH PINTAR (SUPABASE POSTGRESQL)
+-- Salin dan tempelkan seluruh kode ini ke Supabase Dashboard:
+-- Masuk ke project Supabase Anda -> Menu "SQL Editor" -> "New Query" -> Run
+-- ====================================================================
+
+-- 1. TABEL PENGGUNA (USERS)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
+    uid TEXT UNIQUE,
     username TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
     role TEXT NOT NULL,
@@ -120,6 +127,9 @@ CREATE TABLE IF NOT EXISTS siswa (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_siswa_kelas ON siswa(kelas);
+CREATE INDEX IF NOT EXISTS idx_siswa_nisn ON siswa(nisn);
+
 -- 4. TABEL PRESENSI (ABSENSI MASUK & PULANG)
 CREATE TABLE IF NOT EXISTS absensi (
     id SERIAL PRIMARY KEY,
@@ -135,6 +145,10 @@ CREATE TABLE IF NOT EXISTS absensi (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_absensi_tgl_nisn ON absensi(tanggal, nisn);
+CREATE INDEX IF NOT EXISTS idx_absensi_tgl_kelas ON absensi(tanggal, kelas);
+CREATE INDEX IF NOT EXISTS idx_absensi_tanggal ON absensi(tanggal);
+
 -- 5. TABEL PRESENSI SHOLAT
 CREATE TABLE IF NOT EXISTS absensi_sholat (
     id SERIAL PRIMARY KEY,
@@ -148,6 +162,8 @@ CREATE TABLE IF NOT EXISTS absensi_sholat (
     input_oleh TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_sholat_tgl_waktu ON absensi_sholat(tanggal, waktu_sholat, kelas);
 
 -- 6. TABEL HARI LIBUR
 CREATE TABLE IF NOT EXISTS hari_libur (
@@ -177,6 +193,8 @@ CREATE TABLE IF NOT EXISTS log_notifikasi_wa (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_log_wa_tgl_nisn ON log_notifikasi_wa(tanggal_absensi, nisn);
+
 -- 9. TABEL SESSIONS
 CREATE TABLE IF NOT EXISTS sessions (
     id SERIAL PRIMARY KEY,
@@ -189,14 +207,30 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+
+-- ====================================================================
+-- SEED DATA AWAL (DEMO & AKUN RESMI)
+-- ====================================================================
+
 -- DATA AWAL DEFAULT (ADMIN & GURU)
 INSERT INTO users (username, password, role, nama, kelas)
 VALUES 
     ('admin', 'admin123', 'admin', 'Administrator Sekolah', ''),
     ('guru1', 'guru123', 'guru', 'Guru Wali Kelas VII', 'VII A,VII B'),
     ('wakel', 'wakel123', 'wakel', 'Wakil Kepala Sekolah', '')
+ON CONFLICT (username) DO NOTHING;
+
+-- DATA MASTER KELAS
 INSERT INTO kelas (nama, urutan)
-VALUES ('VII A', 1), ('VII B', 2), ('VII C', 3), ('VIII A', 4), ('VIII B', 5), ('IX A', 6), ('IX B', 7)
+VALUES 
+    ('VII A', 1),
+    ('VII B', 2),
+    ('VII C', 3),
+    ('VIII A', 4),
+    ('VIII B', 5),
+    ('IX A', 6),
+    ('IX B', 7)
 ON CONFLICT (nama) DO NOTHING;
 
 -- DATA SISWA CONTOH
@@ -204,7 +238,11 @@ INSERT INTO siswa (nisn, nama, jenis_kelamin, tanggal_lahir, agama, nama_ayah, n
 VALUES 
     ('1234567890', 'Ahmad Rizki', 'Laki-laki', '2010-05-15', 'Islam', 'Budi Santoso', 'Siti Aminah', '081234567890', 'VII A', 'Jl. Merdeka No. 10, Jambi'),
     ('1234567891', 'Siti Nurhaliza', 'Perempuan', '2010-08-20', 'Islam', 'Usman', 'Farida', '081298765432', 'VII A', 'Jl. Sudirman No. 25, Jambi'),
-    ('1234567892', 'Budi Santoso', 'Laki-laki', '2010-03-12', 'Islam', 'Joko', 'Sri Rahayu', '081345678901', 'VII B', 'Jl. Pahlawan No. 7, Jambi')
+    ('1234567892', 'Budi Santoso', 'Laki-laki', '2010-03-12', 'Islam', 'Joko', 'Sri Rahayu', '081345678901', 'VII B', 'Jl. Pahlawan No. 7, Jambi'),
+    ('1234567893', 'Dewi Sartika', 'Perempuan', '2010-11-04', 'Islam', 'Hendra', 'Ratna', '081278901234', 'VII B', 'Jl. Melati No. 15, Jambi'),
+    ('1234567894', 'Kevin Pratama', 'Laki-laki', '2010-07-22', 'Kristen', 'Daniel', 'Maria', '081389012345', 'VII C', 'Jl. Kenanga No. 8, Jambi'),
+    ('1234567895', 'Rian Ardiansyah', 'Laki-laki', '2009-02-18', 'Islam', 'Herman', 'Yuliana', '081290123456', 'VIII A', 'Jl. Anggrek No. 12, Jambi'),
+    ('1234567896', 'Putri Ayu', 'Perempuan', '2009-09-30', 'Islam', 'Suhartono', 'Endang', '081301234567', 'VIII B', 'Jl. Mawar No. 3, Jambi')
 ON CONFLICT (nisn) DO NOTHING;
 
 -- KONFIGURASI JAM OPERASIONAL ABSENSI
@@ -214,8 +252,26 @@ VALUES
     ('jam_masuk_akhir', '07:15', 'Batas jam tepat waktu masuk'),
     ('jam_pulang_mulai', '15:00', 'Jam mulai absensi pulang'),
     ('jam_pulang_akhir', '17:00', 'Batas tutup absensi pulang'),
-    ('mode_absen', 'masuk_pulang', 'Mode absensi: masuk_pulang')
+    ('mode_absen', 'masuk_pulang', 'Mode absensi: masuk_pulang'),
+    ('jadwal_harian', '{"1":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"2":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"3":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"4":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"5":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"6":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"7":{"libur":true,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"}}', 'Jadwal harian')
 ON CONFLICT (key) DO NOTHING;`,
+    },
+    vercel: {
+      name: 'vercel.json (Konfigurasi Resmi Vercel)',
+      desc: 'File konfigurasi Vercel untuk routing serverless function Express dan SPA React Vite',
+      code: `{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api/.*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}`,
     },
     env: {
       name: '.env.production (VPS Lokal)',
@@ -337,12 +393,13 @@ APP_URL=https://absensi.smpn4jambi.sch.id`,
         {/* Tab Navigation */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-4 pt-2.5 overflow-x-auto gap-2 shrink-0 scrollbar-none">
           {[
-            { id: 'supabase', label: '⚡ 1. Koneksi Supabase (Utama)', icon: <Database className="w-3.5 h-3.5 text-emerald-600" /> },
-            { id: 'ringkasan', label: '2. Syarat SSL & Kamera', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
-            { id: 'paas', label: '3. Deploy PaaS (Railway / Render)', icon: <Layers className="w-3.5 h-3.5" /> },
-            { id: 'vps', label: '4. Deploy VPS Ubuntu', icon: <Server className="w-3.5 h-3.5" /> },
-            { id: 'cloudrun', label: '5. Google Cloud Run', icon: <Cloud className="w-3.5 h-3.5" /> },
-            { id: 'konfigurasi', label: '6. Script SQL & Config', icon: <FileCode className="w-3.5 h-3.5" /> },
+            { id: 'supabase', label: '⚡ 1. Database Supabase', icon: <Database className="w-3.5 h-3.5 text-emerald-600" /> },
+            { id: 'vercel', label: '▲ 2. Deploy ke Vercel (Paling Mudah)', icon: <ExternalLink className="w-3.5 h-3.5 text-black" /> },
+            { id: 'ringkasan', label: '3. Syarat SSL & Kamera', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+            { id: 'paas', label: '4. Railway / Render', icon: <Layers className="w-3.5 h-3.5" /> },
+            { id: 'vps', label: '5. VPS Ubuntu', icon: <Server className="w-3.5 h-3.5" /> },
+            { id: 'cloudrun', label: '6. Google Cloud Run', icon: <Cloud className="w-3.5 h-3.5" /> },
+            { id: 'konfigurasi', label: '7. Script SQL & Config', icon: <FileCode className="w-3.5 h-3.5" /> },
           ].map(tab => (
             <button
               key={tab.id}
@@ -458,7 +515,107 @@ DATABASE_URL="postgresql://postgres.xxx:PasswordAnda123!@aws-0-ap-southeast-1.po
             </div>
           )}
 
-          {/* TAB 2: RINGKASAN & SYARAT SSL */}
+          {/* TAB 2: DEPLOY KE VERCEL (UTAMA) */}
+          {activeTab === 'vercel' && (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 rounded-2xl flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-black tracking-wider">▲ VERCEL CLOUD DEPLOYMENT</span>
+                    <span className="bg-emerald-500 text-slate-950 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                      Siap Pakai 100%
+                    </span>
+                  </div>
+                  <p className="text-slate-300 text-xs">
+                    File <code>vercel.json</code> dan <code>api/index.ts</code> sudah dikonfigurasi dan diuji bebas error.
+                  </p>
+                </div>
+                <a
+                  href="https://vercel.com/new"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3.5 py-2 bg-white text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 hover:bg-slate-100 transition shrink-0"
+                >
+                  <span>Buka Vercel</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+
+              <div className="space-y-3">
+                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">1</span>
+                    <h5 className="font-bold text-slate-900 text-xs">Upload / Push Project ke Akun GitHub Anda</h5>
+                  </div>
+                  <p className="text-slate-600 pl-8">
+                    Pastikan seluruh folder project aplikasi ini (termasuk <code>vercel.json</code>, <code>api/index.ts</code>, dan <code>supabase_schema.sql</code>) sudah di-push ke repositori GitHub pribadi/sekolah Anda.
+                  </p>
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">2</span>
+                    <h5 className="font-bold text-slate-900 text-xs">Import Project di Dashboard Vercel</h5>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-8">
+                    <li>Buka <strong><a href="https://vercel.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline">https://vercel.com</a></strong> dan login dengan akun GitHub Anda.</li>
+                    <li>Di dashboard utama, klik tombol <strong>"Add New..."</strong> ➔ pilih <strong>"Project"</strong>.</li>
+                    <li>Cari nama repositori GitHub aplikasi absensi Anda, lalu klik tombol <strong>"Import"</strong>.</li>
+                  </ol>
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">3</span>
+                    <h5 className="font-bold text-slate-900 text-xs">Atur Framework Preset & Build Settings</h5>
+                  </div>
+                  <p className="text-slate-600 pl-8">
+                    Vercel otomatis mendeteksi konfigurasi berikut (tidak perlu diubah):
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-700 font-mono text-[11px] pl-8">
+                    <li>Framework Preset: <strong>Vite</strong></li>
+                    <li>Build Command: <code>npm run build</code></li>
+                    <li>Output Directory: <code>dist</code></li>
+                    <li>Install Command: <code>npm install</code></li>
+                  </ul>
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">4</span>
+                    <h5 className="font-bold text-slate-900 text-xs">Tambahkan Environment Variables (Koneksi Supabase)</h5>
+                  </div>
+                  <p className="text-slate-600 pl-8">
+                    Sebelum klik Deploy, buka dropdown <strong>"Environment Variables"</strong> di halaman Vercel dan tambahkan:
+                  </p>
+                  <div className="pl-8 space-y-2">
+                    <div className="bg-slate-900 p-3 rounded-xl font-mono text-[11px] space-y-1 text-slate-200">
+                      <div><span className="text-indigo-400">Key:</span> <code>DATABASE_URL</code></div>
+                      <div><span className="text-indigo-400">Value:</span> <code className="text-emerald-300">postgresql://postgres.xxx:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres</code></div>
+                      <div className="pt-2"><span className="text-indigo-400">Key:</span> <code>NODE_ENV</code></div>
+                      <div><span className="text-indigo-400">Value:</span> <code>production</code></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">5</span>
+                    <h5 className="font-bold text-slate-900 text-xs">Klik "Deploy" & Selesai!</h5>
+                  </div>
+                  <p className="text-slate-600 pl-8">
+                    Vercel akan mem-build aplikasi dalam waktu sekitar 45 - 60 detik. Anda akan langsung mendapatkan domain HTTPS resmi gratis, misalnya:
+                    <code className="block mt-1 font-bold text-indigo-700 bg-indigo-50 p-2 rounded-lg border border-indigo-200">
+                      https://absensi-sekolah-anda.vercel.app
+                    </code>
+                    Aplikasi langsung bisa dibuka di smartphone, tablet gerbang, dan laptop. Kamera scanner live otomatis aktif karena Vercel sudah menggunakan enkripsi SSL (HTTPS)!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: RINGKASAN & SYARAT SSL */}
           {activeTab === 'ringkasan' && (
             <div className="space-y-4">
               <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-2xl">

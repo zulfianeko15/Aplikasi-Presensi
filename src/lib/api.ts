@@ -26,6 +26,8 @@ export async function apiRequest<T = any>(
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
     headers['X-Session-Token'] = token;
+  } else {
+    headers['X-Kiosk-Mode'] = 'true';
   }
 
   const res = await fetch(`/api${endpoint}`, {

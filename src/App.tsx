@@ -42,6 +42,7 @@ import {
   Globe
 } from 'lucide-react';
 import PanduanDeployModal from './components/PanduanDeployModal.tsx';
+import ScannerLiveKioskView from './components/ScannerLiveKioskView.tsx';
 
 interface CurrentUser {
   role: 'admin' | 'guru' | 'wakel' | 'siswa';
@@ -181,75 +182,14 @@ export default function App() {
     }
   };
 
-  // KIOSK MODE: Akses Langsung Daftar Hadir Tanpa Login
+  // KIOSK MODE: Akses Langsung Scanner Kamera Live Gerbang Sekolah Tanpa Login
   if (isKioskMode) {
     return (
-      <div className="min-h-screen bg-slate-100 font-sans text-slate-800 flex flex-col">
-        {toast && (
-          <div className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-xs font-bold text-white transition-all transform animate-fade-in ${
-            toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-800'
-          }`}>
-            {toast.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-            <span>{toast.message}</span>
-          </div>
-        )}
-
-        {/* Kiosk Mode Top Header */}
-        <header className="bg-[rgb(26,25,103)] text-white px-4 md:px-6 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md border-b border-indigo-900 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shrink-0">
-              <QrCode className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-sm md:text-base text-white tracking-wide">
-                  Daftar Hadir Gerbang Sekolah (Akses Langsung Tanpa Login)
-                </h1>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-400 text-slate-900 tracking-wider">
-                  Kiosk Mode Aktif
-                </span>
-              </div>
-              <p className="text-[10px] text-indigo-200">
-                Arahkan QR Kartu Siswa ke kamera web atau gunakan Scanner Barcode USB MC26 untuk presensi masuk/pulang realtime.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 self-end sm:self-auto">
-            <button
-              onClick={() => setIsDeployGuideOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition border border-white/20"
-            >
-              <Globe className="w-3.5 h-3.5 text-indigo-300" />
-              <span>Panduan Server</span>
-            </button>
-
-            <button
-              onClick={() => setIsKioskMode(false)}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Kembali ke Halaman Login</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Kiosk Content */}
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-          <div className="max-w-6xl mx-auto">
-            <DaftarHadirView
-              currentUser={{ role: 'guru', nama: 'Petugas Gerbang (Kiosk)' }}
-              kelasList={kelasList}
-              showToast={showToast}
-            />
-          </div>
-        </main>
-
-        <PanduanDeployModal
-          isOpen={isDeployGuideOpen}
-          onClose={() => setIsDeployGuideOpen(false)}
-        />
-      </div>
+      <ScannerLiveKioskView
+        onClose={() => setIsKioskMode(false)}
+        showToast={showToast}
+        kelasList={kelasList}
+      />
     );
   }
 
@@ -1206,22 +1146,31 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
     e.target.value = '';
   };
 
-  // Tandai Pulang Satu Siswa
+  // Tandai Pulang Satu Siswa (Manual Action)
   const handleMarkPulangSatu = async (nisn: string, nama: string) => {
+    const nowTimeStr = new Date().toTimeString().substring(0, 5);
+    // Optimistic UI update
+    setStudents(prev => prev.map(item => item.nisn === nisn ? {
+      ...item,
+      jamPulang: nowTimeStr,
+    } : item));
+
     try {
       const res = await api.submitPulangSatu(nisn, todayDate);
-      if (res.success) {
-        showToast(res.message);
+      if (res && res.success) {
+        showToast(res.message || `${nama} berhasil dicatat pulang.`);
         fetchStudents();
       } else {
-        showToast(res.message, 'error');
+        showToast(res?.message || 'Gagal mencatat pulang siswa', 'error');
+        fetchStudents();
       }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Koneksi gagal', 'error');
+      fetchStudents();
     }
   };
 
-  // Tandai Pulang Semua Siswa Hadir
+  // Tandai Pulang Semua Siswa Hadir (Manual Action)
   const handleMarkPulangSemuaHadir = async () => {
     const hadirBelumPulang = students.filter(s => s.status === 'hadir' && !s.jamPulang);
     if (hadirBelumPulang.length === 0) {
@@ -1233,16 +1182,25 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
       return;
     }
 
+    const nowTimeStr = new Date().toTimeString().substring(0, 5);
+    // Optimistic UI update
+    setStudents(prev => prev.map(item => (item.status === 'hadir' && !item.jamPulang) ? {
+      ...item,
+      jamPulang: nowTimeStr,
+    } : item));
+
     try {
-      const res = await api.submitPulangSemuaHadir(selectedKelas, todayDate, currentUser.nama);
-      if (res.success) {
-        showToast(res.message);
+      const res = await api.submitPulangSemuaHadir(selectedKelas, todayDate, currentUser?.nama || 'Petugas');
+      if (res && res.success) {
+        showToast(res.message || 'Semua siswa hadir berhasil dicatat pulang.');
         fetchStudents();
       } else {
-        showToast(res.message, 'error');
+        showToast(res?.message || 'Gagal mencatat pulang massal', 'error');
+        fetchStudents();
       }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Koneksi gagal', 'error');
+      fetchStudents();
     }
   };
 
@@ -1269,14 +1227,30 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
     showToast(`Notifikasi WA untuk ${siswaItem.nama} telah dicatat.`);
   };
 
-  // Quick Status change (Hadir, Sakit, Izin, Alpa) in Masuk Mode
+  // Quick Status change (Hadir, Sakit, Izin, Alpa) in Masuk Mode (Manual Button Action)
   const setQuickStatus = async (s: any, status: string) => {
+    const lowerStatus = status.toLowerCase();
+    const nowTimeStr = new Date().toTimeString().substring(0, 5);
+
+    // Instant optimistic UI update so button highlight changes immediately
+    setStudents(prev => prev.map(item => item.nisn === s.nisn ? {
+      ...item,
+      status: lowerStatus,
+      jamDatang: lowerStatus === 'hadir' ? (item.jamDatang || nowTimeStr) : item.jamDatang,
+    } : item));
+
     try {
-      await api.updateAbsensiStatus(s.nisn, s.nama, s.kelas, status);
-      fetchStudents();
-      showToast(`Status ${s.nama} diubah ke ${status}.`);
+      const res = await api.updateAbsensiStatus(s.nisn, s.nama, s.kelas, status);
+      if (res && res.success) {
+        showToast(`Status ${s.nama} diubah ke ${status}.`);
+        fetchStudents();
+      } else {
+        showToast(res?.message || 'Gagal mengubah status', 'error');
+        fetchStudents();
+      }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Koneksi gagal', 'error');
+      fetchStudents();
     }
   };
 
@@ -1465,14 +1439,16 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
                                     return (
                                       <button
                                         key={st}
+                                        type="button"
+                                        title={`Tandai status: ${st}`}
                                         onClick={() => setQuickStatus(s, st)}
-                                        className={`px-2 py-1 rounded text-[10px] font-bold border transition ${
+                                        className={`px-2 py-1 rounded text-[10px] font-bold border transition cursor-pointer active:scale-95 ${
                                           active
-                                            ? st === 'Hadir' ? 'bg-emerald-600 text-white border-emerald-600'
-                                              : st === 'Sakit' ? 'bg-amber-500 text-white border-amber-500'
-                                              : st === 'Izin' ? 'bg-blue-600 text-white border-blue-600'
-                                              : 'bg-rose-600 text-white border-rose-600'
-                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                            ? st === 'Hadir' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                              : st === 'Sakit' ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                                              : st === 'Izin' ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                              : 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
                                         }`}
                                       >
                                         {st[0]}
@@ -1529,8 +1505,9 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
                                   </span>
                                 ) : (
                                   <button
+                                    type="button"
                                     onClick={() => handleMarkPulangSatu(s.nisn, s.nama)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-bold rounded-lg text-xs transition shadow-xs"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-bold rounded-lg text-xs transition shadow-xs cursor-pointer"
                                   >
                                     <LogOut className="w-3.5 h-3.5" /> Tandai Pulang
                                   </button>
@@ -1665,11 +1642,12 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
                   className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white outline-none"
                 />
                 <button
+                  type="button"
                   onClick={() => {
                     handleScanNisn(manualNisn);
                     setManualNisn('');
                   }}
-                  className="px-4 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-black transition"
+                  className="px-4 py-2 bg-slate-900 hover:bg-black active:scale-95 text-white font-bold rounded-xl text-xs transition cursor-pointer"
                 >
                   Scan
                 </button>
