@@ -26,7 +26,7 @@ interface PanduanDeployModalProps {
 
 export default function PanduanDeployModal({ isOpen, onClose }: PanduanDeployModalProps) {
   const [activeTab, setActiveTab] = useState<'supabase' | 'vercel' | 'ringkasan' | 'vps' | 'cloudrun' | 'paas' | 'konfigurasi'>('supabase');
-  const [activeConfigFile, setActiveConfigFile] = useState<'supabase_env' | 'supabase_sql' | 'vercel' | 'env' | 'nginx' | 'pm2'>('supabase_env');
+  const [activeConfigFile, setActiveConfigFile] = useState<'supabase_env' | 'supabase_sql' | 'npmrc' | 'vercel' | 'env' | 'nginx' | 'pm2'>('supabase_env');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Live Database Connection Status
@@ -255,6 +255,11 @@ VALUES
     ('mode_absen', 'masuk_pulang', 'Mode absensi: masuk_pulang'),
     ('jadwal_harian', '{"1":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"2":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"3":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"4":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"5":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"6":{"libur":false,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"},"7":{"libur":true,"masuk_mulai":"06:00","masuk_akhir":"07:15","pulang_mulai":"15:00","pulang_akhir":"17:00"}}', 'Jadwal harian')
 ON CONFLICT (key) DO NOTHING;`,
+    },
+    npmrc: {
+      name: '.npmrc (Vercel Fix ERESOLVE)',
+      desc: 'File konfigurasi npm untuk mencegah error peer dependency (ERESOLVE) saat Vercel build',
+      code: `legacy-peer-deps=true`,
     },
     vercel: {
       name: 'vercel.json (Konfigurasi Resmi Vercel)',
@@ -576,8 +581,11 @@ DATABASE_URL="postgresql://postgres.xxx:PasswordAnda123!@aws-0-ap-southeast-1.po
                     <li>Framework Preset: <strong>Vite</strong></li>
                     <li>Build Command: <code>npm run build</code></li>
                     <li>Output Directory: <code>dist</code></li>
-                    <li>Install Command: <code>npm install</code></li>
+                    <li>Install Command: <code>npm install --legacy-peer-deps</code> <em>(Aktifkan override jika muncul error ERESOLVE)</em></li>
                   </ul>
+                  <div className="mt-2 ml-8 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                    <strong>💡 Tips Bebas Error Vercel:</strong> File <code>.npmrc</code> (berisi <code>legacy-peer-deps=true</code>) sudah disediakan di project ini. Jika Vercel memunculkan <code>ERESOLVE could not resolve</code>, cukup atur <strong>Install Command</strong> di atas menjadi <code>npm install --legacy-peer-deps</code>.
+                  </div>
                 </div>
 
                 <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2">
@@ -764,7 +772,7 @@ gcloud run deploy absensi-sekolah \\
           {activeTab === 'konfigurasi' && (
             <div className="space-y-4">
               <div className="flex gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-                {(['supabase_env', 'supabase_sql', 'env', 'nginx', 'pm2'] as const).map(key => (
+                {(['supabase_env', 'supabase_sql', 'npmrc', 'vercel', 'env', 'nginx', 'pm2'] as const).map(key => (
                   <button
                     key={key}
                     onClick={() => setActiveConfigFile(key)}
