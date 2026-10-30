@@ -42,7 +42,10 @@ import {
   Globe,
   FileCheck,
   Percent,
-  TrendingUp
+  TrendingUp,
+  Lock,
+  KeyRound,
+  ShieldAlert
 } from 'lucide-react';
 import PanduanDeployModal from './components/PanduanDeployModal.tsx';
 import ScannerLiveKioskView from './components/ScannerLiveKioskView.tsx';
@@ -73,6 +76,21 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+
+  // Kiosk Access Passcode Verification State ("silahkanmasuk")
+  const [showKioskPasscodeModal, setShowKioskPasscodeModal] = useState(false);
+  const [kioskPasscode, setKioskPasscode] = useState('');
+  const [kioskPasscodeError, setKioskPasscodeError] = useState('');
+  const [kioskAttempts, setKioskAttempts] = useState<number>(() => {
+    try {
+      const saved = sessionStorage.getItem('kiosk_passcode_attempts');
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const MAX_KIOSK_ATTEMPTS = 3;
+  const isKioskLocked = kioskAttempts >= MAX_KIOSK_ATTEMPTS;
 
   // App notification banner / toast
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -143,6 +161,10 @@ export default function App() {
           token: res.token,
         };
         localStorage.setItem('absensiAppSession', JSON.stringify(userData));
+        try {
+          sessionStorage.removeItem('kiosk_passcode_attempts');
+        } catch {}
+        setKioskAttempts(0);
         setCurrentUser(userData);
         showToast(`Selamat datang, ${userData.nama || userData.username}!`);
       } else {
@@ -152,6 +174,36 @@ export default function App() {
       setLoginError(err.message || 'Koneksi ke server gagal.');
     } finally {
       setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleVerifyKioskPasscode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isKioskLocked) {
+      setKioskPasscodeError('Batas percobaan telah habis. Silakan login akun terlebih dahulu.');
+      return;
+    }
+
+    if (kioskPasscode.trim() === 'silahkanmasuk') {
+      setShowKioskPasscodeModal(false);
+      setKioskPasscode('');
+      setKioskPasscodeError('');
+      setIsKioskMode(true);
+      showToast('✓ Kode verifikasi benar! Membuka scanner daftar hadir...', 'success');
+    } else {
+      const nextAttempts = kioskAttempts + 1;
+      setKioskAttempts(nextAttempts);
+      try {
+        sessionStorage.setItem('kiosk_passcode_attempts', String(nextAttempts));
+      } catch {}
+      setKioskPasscode('');
+
+      if (nextAttempts >= MAX_KIOSK_ATTEMPTS) {
+        setShowKioskPasscodeModal(false);
+        showToast(`Batas maksimal percobaan (${MAX_KIOSK_ATTEMPTS} kali) tercapai! Akses langsung ditutup. Silakan login akun terlebih dahulu.`, 'error');
+      } else {
+        setKioskPasscodeError(`Kode verifikasi salah! Percobaan ${nextAttempts} dari ${MAX_KIOSK_ATTEMPTS}. Sisa kesempatan: ${MAX_KIOSK_ATTEMPTS - nextAttempts} kali.`);
+      }
     }
   };
 
@@ -357,36 +409,138 @@ export default function App() {
               </form>
 
               {/* Tombol Akses Langsung Daftar Hadir Tanpa Login */}
-              <div className="mt-6 pt-5 border-t border-slate-200">
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-300 p-4 rounded-2xl shadow-xs">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-600 text-white tracking-wider">
-                      <QrCode className="w-3 h-3" /> Akses Gerbang Sekolah
-                    </span>
-                    <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 px-2 py-0.5 rounded-full">
-                      Tanpa Perlu Login
-                    </span>
-                  </div>
-                  <h4 className="font-extrabold text-xs text-slate-900 mb-1">
-                    Aktifkan Langsung Scanner Daftar Hadir
-                  </h4>
-                  <p className="text-[10px] text-slate-500 mb-3 leading-relaxed">
-                    Mode presensi mandiri untuk siswa, guru piket, atau satpam di pintu masuk sekolah. Langsung aktifkan kamera QR atau scanner barcode USB tanpa perlu login akun!
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setIsKioskMode(true)}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-emerald-200 transition text-xs flex items-center justify-center gap-2 group"
-                  >
-                    <Camera className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition" />
-                    <span>BUKA SCANNER DAFTAR HADIR (LANGSUNG SCAN)</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+              {/* HIDDEN JIKA TAB SISWA - HANYA MUNCUL DI TAB ADMIN / GURU */}
+              {loginTab === 'admin' && (
+                <div className="mt-6 pt-5 border-t border-slate-200 animate-in fade-in">
+                  {isKioskLocked ? (
+                    /* Jika gagal sampai batas maksimal (3 kali), tampilan tombol buka scanner TIDAK MUNCUL dan harus login dulu */
+                    <div className="bg-rose-50 border border-rose-300 p-4 rounded-2xl shadow-xs space-y-2">
+                      <div className="flex items-center gap-2 text-rose-900 font-extrabold text-xs">
+                        <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Akses Scanner Langsung Terkunci</span>
+                      </div>
+                      <p className="text-[11px] text-rose-700 leading-relaxed">
+                        Anda telah mencapai batas maksimal ({MAX_KIOSK_ATTEMPTS} kali) memasukkan kode verifikasi yang salah.
+                        Tampilan tombol buka scanner tanpa login telah <strong>dinonaktifkan</strong>. Anda <strong>harus login akun terlebih dahulu</strong> untuk dapat mengakses scanner daftar hadir.
+                      </p>
+                    </div>
+                  ) : (
+                    /* Tampilan untuk Admin/Guru: Memerlukan kata sandi / kode verifikasi "silahkanmasuk" */
+                    <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-300 p-4 rounded-2xl shadow-xs">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-600 text-white tracking-wider">
+                          <QrCode className="w-3 h-3" /> Akses Gerbang Sekolah
+                        </span>
+                        <span className="text-[10px] text-indigo-800 font-extrabold bg-indigo-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> Perlu Kode Akses
+                        </span>
+                      </div>
+                      <h4 className="font-extrabold text-xs text-slate-900 mb-1">
+                        Aktifkan Langsung Scanner Daftar Hadir
+                      </h4>
+                      <p className="text-[10px] text-slate-500 mb-3 leading-relaxed">
+                        Khusus Guru / Admin: Buka scanner presensi kamera/barcode gerbang tanpa login akun. Diperlukan kode verifikasi otorisasi untuk membuka tampilan scanner ini.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setKioskPasscode('');
+                          setKioskPasscodeError('');
+                          setShowKioskPasscodeModal(true);
+                        }}
+                        className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-emerald-200 transition text-xs flex items-center justify-center gap-2 group cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition" />
+                        <span>BUKA SCANNER DAFTAR HADIR (VERIFIKASI KODE)</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Modal Verifikasi Kode Akses Scanner Kiosk */}
+        {showKioskPasscodeModal && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900">Verifikasi Kode Akses</h3>
+                    <p className="text-[10px] text-slate-400">Scanner Langsung Tanpa Login</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowKioskPasscodeModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs text-slate-600">
+                <p>
+                  Masukkan kode verifikasi resmi untuk membuka scanner daftar hadir tanpa login:
+                </p>
+                <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] font-bold">
+                  <span className="text-slate-500">Percobaan gagal: {kioskAttempts} / {MAX_KIOSK_ATTEMPTS}</span>
+                  <span className="text-indigo-600">Sisa: {MAX_KIOSK_ATTEMPTS - kioskAttempts} kali</span>
+                </div>
+              </div>
+
+              {kioskPasscodeError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                  <span>{kioskPasscodeError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerifyKioskPasscode} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Kode Verifikasi Akses <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    autoFocus
+                    required
+                    value={kioskPasscode}
+                    onChange={(e) => setKioskPasscode(e.target.value)}
+                    placeholder="Masukkan kode verifikasi..."
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Jika gagal {MAX_KIOSK_ATTEMPTS} kali, akses langsung akan dikunci dan Anda harus login akun terlebih dahulu.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowKioskPasscodeModal(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-200 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Verifikasi & Buka</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         <PanduanDeployModal
           isOpen={isDeployGuideOpen}

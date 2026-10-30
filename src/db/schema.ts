@@ -109,3 +109,24 @@ export const sessions = pgTable('sessions', {
 }, (table) => [
   index('sessions_token_idx').on(table.token),
 ]);
+
+export const pengajuanIzin = pgTable('pengajuan_izin', {
+  id: serial('id').primaryKey(),
+  nisn: text('nisn').notNull(),
+  nama: text('nama').notNull(),
+  kelas: text('kelas').notNull(),
+  jenis: text('jenis').notNull(),
+  tanggalMulai: text('tanggal_mulai').notNull(),
+  tanggalSelesai: text('tanggal_selesai').notNull(),
+  keterangan: text('keterangan').notNull(),
+  dokumenUrl: text('dokumen_url').default(''),
+  status: text('status').notNull().default('Menunggu Persetujuan'),
+  catatanAdmin: text('catatan_admin').default(''),
+  reviewedAt: text('reviewed_at').default(''),
+  reviewedBy: text('reviewed_by').default(''),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  index('pengajuan_nisn_idx').on(table.nisn),
+  index('pengajuan_status_idx').on(table.status),
+]);
+

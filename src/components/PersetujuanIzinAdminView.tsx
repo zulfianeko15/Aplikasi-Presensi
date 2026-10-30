@@ -13,7 +13,12 @@ import {
   User,
   ShieldCheck,
   Check,
-  X
+  X,
+  Eye,
+  FileCheck,
+  Stethoscope,
+  MapPin,
+  FileText
 } from 'lucide-react';
 
 interface PersetujuanIzinAdminViewProps {
@@ -43,6 +48,11 @@ export default function PersetujuanIzinAdminView({
   const [actionType, setActionType] = useState<'Disetujui' | 'Ditolak'>('Disetujui');
   const [catatanAdmin, setCatatanAdmin] = useState('');
   const [processingReview, setProcessingReview] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  const isImageDoc = (url: string) => {
+    return url.startsWith('data:image') || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(url);
+  };
 
   const fetchPengajuan = async () => {
     try {
@@ -261,12 +271,56 @@ export default function PersetujuanIzinAdminView({
                     </p>
 
                     {item.dokumenUrl && (
-                      <p className="text-indigo-600 text-[11px] truncate pt-1 border-t border-slate-200/60">
-                        <strong>Lampiran:</strong>{' '}
-                        <a href={item.dokumenUrl} target="_blank" rel="noreferrer" className="underline hover:text-indigo-800">
-                          {item.dokumenUrl}
-                        </a>
-                      </p>
+                      <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-3 text-xs bg-white p-2.5 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isImageDoc(item.dokumenUrl) ? (
+                            <img
+                              src={item.dokumenUrl}
+                              alt="Bukti Pengajuan"
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <FileText className="w-6 h-6 text-indigo-600 shrink-0" />
+                          )}
+                          <div className="truncate">
+                            <span className="font-bold text-slate-800 text-[11px] block flex items-center gap-1">
+                              {item.jenis === 'Sakit' ? (
+                                <>
+                                  <Stethoscope className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>Surat Sakit Dokter / Puskesmas</span>
+                                </>
+                              ) : (
+                                <>
+                                  <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  <span>Foto Koordinat GPS Map Camera</span>
+                                </>
+                              )}
+                            </span>
+                            <span className="text-[10px] text-emerald-600 font-semibold">Lampiran Berkas Wajib</span>
+                          </div>
+                        </div>
+
+                        {isImageDoc(item.dokumenUrl) ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage(item.dokumenUrl)}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Lihat Bukti</span>
+                          </button>
+                        ) : (
+                          <a
+                            href={item.dokumenUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Buka Link</span>
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -373,6 +427,47 @@ export default function PersetujuanIzinAdminView({
           </div>
         </div>
       )}
+
+      {/* Lightbox Preview Modal for Admin Document Verification */}
+      {previewImage && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-4 shadow-2xl border border-slate-200 space-y-3 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-emerald-600" />
+                <span>Verifikasi Berkas Bukti (Surat Sakit / Foto Koordinat GPS)</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="max-h-[72vh] overflow-auto rounded-2xl bg-slate-900 flex items-center justify-center p-2">
+              <img
+                src={previewImage}
+                alt="Dokumen Bukti"
+                className="max-h-[68vh] w-auto object-contain rounded-xl"
+              />
+            </div>
+            <div className="flex justify-between items-center pt-1">
+              <p className="text-[11px] text-slate-500">
+                Periksa keabsahan stempel dokter atau titik koordinat GPS sebelum menyetujui.
+              </p>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="px-4 py-2 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
