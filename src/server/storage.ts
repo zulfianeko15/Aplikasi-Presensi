@@ -712,15 +712,28 @@ export const storage = {
   },
 
   async updateAbsensiStatus(tanggal: string, nisn: string, nama: string, kelas: string, status: string, jamDatang?: string): Promise<void> {
+    const isHadir = status.toLowerCase() === 'hadir';
+    const canonicalStatus = isHadir
+      ? 'Hadir'
+      : status.toLowerCase() === 'sakit'
+      ? 'Sakit'
+      : status.toLowerCase() === 'izin'
+      ? 'Izin'
+      : status.toLowerCase() === 'alpa'
+      ? 'Alpa'
+      : status;
+
     if (isPgActive && pgPool) {
       const existing = await pgPool.query('SELECT id, jam_datang FROM absensi WHERE tanggal = $1 AND nisn = $2', [tanggal, nisn]);
       if (existing.rows.length > 0) {
-        const jd = (status === 'Hadir' && !existing.rows[0].jam_datang) ? (jamDatang || '') : existing.rows[0].jam_datang;
-        await pgPool.query('UPDATE absensi SET status = $1, jam_datang = $2 WHERE id = $3', [status, jd, existing.rows[0].id]);
+        const jd = isHadir
+          ? (existing.rows[0].jam_datang || jamDatang || '07:00:00')
+          : existing.rows[0].jam_datang;
+        await pgPool.query('UPDATE absensi SET status = $1, jam_datang = $2 WHERE id = $3', [canonicalStatus, jd, existing.rows[0].id]);
       } else {
         await pgPool.query(
           'INSERT INTO absensi (tanggal, nisn, nama, kelas, jam_datang, jam_pulang, keterangan, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-          [tanggal, nisn, nama, kelas, status === 'Hadir' ? (jamDatang || '') : '', '', status === 'Hadir' ? 'Tepat Waktu' : 'Status Manual', status]
+          [tanggal, nisn, nama, kelas, isHadir ? (jamDatang || '07:00:00') : '', '', isHadir ? 'Tepat Waktu' : 'Status Manual', canonicalStatus]
         );
       }
       return;
@@ -728,9 +741,9 @@ export const storage = {
 
     const idx = memoryAbsensi.findIndex(a => a.tanggal === tanggal && a.nisn === nisn);
     if (idx !== -1) {
-      memoryAbsensi[idx].status = status;
-      if (status === 'Hadir' && !memoryAbsensi[idx].jamDatang) {
-        memoryAbsensi[idx].jamDatang = jamDatang || '';
+      memoryAbsensi[idx].status = canonicalStatus;
+      if (isHadir && !memoryAbsensi[idx].jamDatang) {
+        memoryAbsensi[idx].jamDatang = jamDatang || '07:00:00';
       }
     } else {
       memoryAbsensi.push({
@@ -739,10 +752,10 @@ export const storage = {
         nisn,
         nama,
         kelas,
-        jamDatang: status === 'Hadir' ? (jamDatang || '') : '',
+        jamDatang: isHadir ? (jamDatang || '07:00:00') : '',
         jamPulang: '',
-        keterangan: status === 'Hadir' ? 'Tepat Waktu' : 'Status Manual',
-        status,
+        keterangan: isHadir ? 'Tepat Waktu' : 'Status Manual',
+        status: canonicalStatus,
       });
     }
   },

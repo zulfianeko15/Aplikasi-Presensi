@@ -654,13 +654,6 @@ export default function App() {
                 collapsed={!isSidebarOpen}
                 onClick={() => { setActiveView('rekap-bulanan'); setMobileMenuOpen(false); }}
               />
-              <SidebarBtn
-                label="Absensi Sholat"
-                icon={<Calendar className="w-4 h-4" />}
-                active={activeView === 'sholat'}
-                collapsed={!isSidebarOpen}
-                onClick={() => { setActiveView('sholat'); setMobileMenuOpen(false); }}
-              />
             </>
           )}
 
@@ -1510,7 +1503,9 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
 
   useEffect(() => {
     fetchStudents();
-  }, [selectedKelas, mode]);
+    const interval = setInterval(fetchStudents, 5000);
+    return () => clearInterval(interval);
+  }, [selectedKelas, mode, todayDate]);
 
   // Audio Beep
   const playBeep = (success: boolean) => {
@@ -1775,17 +1770,17 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
     } : item));
 
     try {
-      const res = await api.updateAbsensiStatus(s.nisn, s.nama, s.kelas, status);
+      const res = await api.updateAbsensiStatus(s.nisn, s.nama, s.kelas, status, todayDate);
       if (res && res.success) {
         showToast(`Status ${s.nama} diubah ke ${status}.`);
-        fetchStudents();
+        await fetchStudents();
       } else {
         showToast(res?.message || 'Gagal mengubah status', 'error');
-        fetchStudents();
+        await fetchStudents();
       }
     } catch (err: any) {
       showToast(err.message || 'Koneksi gagal', 'error');
-      fetchStudents();
+      await fetchStudents();
     }
   };
 
@@ -1883,10 +1878,11 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
               )}
               <button
                 onClick={fetchStudents}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
-                title="Refresh"
+                disabled={loading}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white transition cursor-pointer"
+                title="Refresh Daftar Hadir"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>

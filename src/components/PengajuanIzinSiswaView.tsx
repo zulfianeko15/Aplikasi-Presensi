@@ -20,7 +20,8 @@ import {
   Eye,
   FileCheck,
   Stethoscope,
-  Trash2
+  Trash2,
+  Edit
 } from 'lucide-react';
 
 interface PengajuanIzinSiswaViewProps {
@@ -189,7 +190,29 @@ export default function PengajuanIzinSiswaView({ currentUser, showToast }: Penga
   };
 
   const isImageDoc = (url: string) => {
-    return url.startsWith('data:image') || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(url);
+    return url.startsWith('data:image') || /\.(jpg|jpeg|png|webp|gif|svg)($|\?)/i.test(url);
+  };
+
+  const isPdfDoc = (url: string) => {
+    return url.startsWith('data:application/pdf') || /\.pdf($|\?)/i.test(url);
+  };
+
+  const handlePerbaikiPengajuan = (item: any) => {
+    setJenis(item.jenis === 'Sakit' ? 'Sakit' : 'Izin');
+    setTanggalMulai(item.tanggalMulai || '');
+    setTanggalSelesai(item.tanggalSelesai || item.tanggalMulai || '');
+    setKeterangan(item.keterangan || '');
+    setDokumenUrl(item.dokumenUrl || '');
+    setDokumenFileName(
+      item.dokumenUrl
+        ? isPdfDoc(item.dokumenUrl)
+          ? 'Lampiran_Sebelumnya.pdf'
+          : 'Lampiran_Sebelumnya.png'
+        : ''
+    );
+    setValidationError('');
+    setActiveTab('form');
+    showToast('Form telah dimuat dengan data pengajuan sebelumnya. Silakan perbaiki dan kirim ulang.');
   };
 
   return (
@@ -669,7 +692,7 @@ export default function PengajuanIzinSiswaView({ currentUser, showToast }: Penga
                           </div>
                         </div>
 
-                        {isImageDoc(item.dokumenUrl) ? (
+                        {isImageDoc(item.dokumenUrl) || isPdfDoc(item.dokumenUrl) ? (
                           <button
                             type="button"
                             onClick={() => setPreviewImage(item.dokumenUrl)}
@@ -701,6 +724,20 @@ export default function PengajuanIzinSiswaView({ currentUser, showToast }: Penga
                         <p>{item.catatanAdmin}</p>
                       </div>
                     )}
+
+                    {/* Tombol Perbaiki Pengajuan jika ditolak oleh Admin / Guru Piket */}
+                    {isRejected && (
+                      <div className="pt-2 border-t border-slate-200/60 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handlePerbaikiPengajuan(item)}
+                          className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-95 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>Perbaiki Pengajuan</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -727,11 +764,19 @@ export default function PengajuanIzinSiswaView({ currentUser, showToast }: Penga
               </button>
             </div>
             <div className="max-h-[70vh] overflow-auto rounded-2xl bg-slate-900 flex items-center justify-center p-2">
-              <img
-                src={previewImage}
-                alt="Pratinjau Dokumen"
-                className="max-h-[65vh] w-auto object-contain rounded-xl"
-              />
+              {isPdfDoc(previewImage) ? (
+                <iframe
+                  src={previewImage}
+                  title="Pratinjau Dokumen PDF"
+                  className="w-full h-[65vh] rounded-xl border border-slate-700 bg-white"
+                />
+              ) : (
+                <img
+                  src={previewImage}
+                  alt="Pratinjau Dokumen"
+                  className="max-h-[65vh] w-auto object-contain rounded-xl"
+                />
+              )}
             </div>
             <div className="flex justify-end pt-1">
               <button

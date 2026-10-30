@@ -368,35 +368,35 @@ export default function ScannerLiveKioskView({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 flex flex-col select-none">
+    <div className="h-screen max-h-screen w-screen overflow-hidden bg-slate-950 font-sans text-slate-100 flex flex-col select-none">
       {/* Kiosk Top Bar */}
-      <header className="bg-slate-900 border-b border-slate-800 px-4 md:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-lg shrink-0">
+      <header className="bg-slate-900 border-b border-slate-800 px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shadow-lg shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-            <QrCode className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 shrink-0">
+            <QrCode className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-extrabold text-base md:text-lg text-white tracking-wide">
+              <h1 className="font-extrabold text-sm md:text-base text-white tracking-wide">
                 Scanner Kamera Live Gerbang Sekolah
               </h1>
-              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 Live Realtime
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[10px] text-slate-400">
               Arahkan QR Kartu Siswa ke kamera live atau gunakan Barcode Scanner USB (MC26).
             </p>
           </div>
         </div>
 
         {/* Mode Selector, Sound Toggle & Exit */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="bg-slate-800/80 p-1 rounded-xl flex border border-slate-700/60 shadow-inner">
             <button
               onClick={() => setMode('masuk')}
-              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${
                 mode === 'masuk'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
@@ -406,7 +406,7 @@ export default function ScannerLiveKioskView({
             </button>
             <button
               onClick={() => setMode('pulang')}
-              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${
                 mode === 'pulang'
                   ? 'bg-orange-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
@@ -418,7 +418,7 @@ export default function ScannerLiveKioskView({
 
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700"
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700 cursor-pointer"
             title={soundEnabled ? 'Matikan Suara Beep' : 'Nyalakan Suara Beep'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
@@ -426,19 +426,19 @@ export default function ScannerLiveKioskView({
 
           <button
             onClick={onClose}
-            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md shadow-rose-900/30"
+            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md shadow-rose-900/30 cursor-pointer"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
             <span>Kembali ke Halaman Login</span>
           </button>
         </div>
       </header>
 
-      {/* Main Kiosk Layout: 2 Columns (Live Camera on Left, Simple Feed on Right) */}
-      <main className="flex-1 p-3 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 overflow-hidden">
+      {/* Main Kiosk Layout: Flat view (Live Camera on Left, Simple Feed on Right) */}
+      <main className="flex-1 min-h-0 p-3 md:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 overflow-hidden">
         {/* Left Column: Live Camera Section (7 Cols on desktop) */}
-        <section className="lg:col-span-7 flex flex-col gap-3 min-h-[460px]">
-          <div className="relative flex-1 bg-black rounded-3xl border border-slate-800 overflow-hidden shadow-2xl flex items-center justify-center group">
+        <section className="lg:col-span-7 flex flex-col gap-2.5 min-h-0 h-full overflow-hidden">
+          <div className="relative flex-1 min-h-0 bg-black rounded-3xl border border-slate-800 overflow-hidden shadow-2xl flex items-center justify-center group">
             {/* Live HTML5 Video Element */}
             <video
               ref={videoRef}
@@ -452,17 +452,17 @@ export default function ScannerLiveKioskView({
             {cameraActive && (
               <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-4">
                 <div
-                  className={`relative w-64 h-64 sm:w-80 sm:h-80 border-2 rounded-3xl backdrop-brightness-105 flex items-center justify-center transition-colors duration-300 ${
+                  className={`relative w-56 h-56 sm:w-72 sm:h-72 border-2 rounded-3xl backdrop-brightness-105 flex items-center justify-center transition-colors duration-300 ${
                     mode === 'pulang'
                       ? 'border-orange-500/70 shadow-[0_0_50px_rgba(249,115,22,0.25)]'
                       : 'border-emerald-400/60 shadow-[0_0_50px_rgba(16,185,129,0.15)]'
                   }`}
                 >
                   {/* Viewfinder Corners */}
-                  <div className={`absolute -top-1 -left-1 w-7 h-7 border-t-4 border-l-4 rounded-tl-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
-                  <div className={`absolute -top-1 -right-1 w-7 h-7 border-t-4 border-r-4 rounded-tr-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
-                  <div className={`absolute -bottom-1 -left-1 w-7 h-7 border-b-4 border-l-4 rounded-bl-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
-                  <div className={`absolute -bottom-1 -right-1 w-7 h-7 border-b-4 border-r-4 rounded-br-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
+                  <div className={`absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 rounded-tl-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
+                  <div className={`absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 rounded-tr-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
+                  <div className={`absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 rounded-bl-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
+                  <div className={`absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 rounded-br-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
 
                   {/* Laser Beam Animation */}
                   <div
@@ -473,7 +473,7 @@ export default function ScannerLiveKioskView({
                     }`}
                   ></div>
 
-                  <p className="text-white/90 font-bold text-xs bg-black/75 px-3.5 py-1.5 rounded-full backdrop-blur-xs border border-white/10 flex items-center gap-1.5">
+                  <p className="text-white/90 font-bold text-xs bg-black/75 px-3 py-1.5 rounded-full backdrop-blur-xs border border-white/10 flex items-center gap-1.5">
                     {mode === 'pulang' ? (
                       <>
                         <LogOut className="w-3.5 h-3.5 text-orange-400" />
@@ -489,9 +489,9 @@ export default function ScannerLiveKioskView({
 
             {/* Inactive Camera State */}
             {!cameraActive && (
-              <div className="text-center p-8 text-slate-400 space-y-3">
-                <div className="w-16 h-16 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-500">
-                  <Camera className="w-8 h-8" />
+              <div className="text-center p-6 text-slate-400 space-y-3">
+                <div className="w-14 h-14 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                  <Camera className="w-7 h-7" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-200">Kamera Live Sedang Ditutup</h3>
@@ -501,7 +501,7 @@ export default function ScannerLiveKioskView({
                 </div>
                 <button
                   onClick={() => startCamera(cameraFacing)}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-xs transition inline-flex items-center gap-2 shadow-lg shadow-emerald-900/40"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-xs transition inline-flex items-center gap-2 shadow-lg shadow-emerald-900/40 cursor-pointer"
                 >
                   <Camera className="w-4 h-4" /> Buka Kamera Live Sekarang
                 </button>
@@ -510,17 +510,17 @@ export default function ScannerLiveKioskView({
 
             {/* Camera Floating Controls */}
             {cameraActive && (
-              <div className="absolute top-4 right-4 flex items-center gap-2">
+              <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
                 <button
                   onClick={toggleCameraFacing}
-                  className="p-2.5 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white rounded-xl transition border border-white/10"
+                  className="p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white rounded-xl transition border border-white/10 cursor-pointer"
                   title="Putar Kamera (Depan / Belakang)"
                 >
                   <FlipHorizontal className="w-4 h-4" />
                 </button>
                 <button
                   onClick={stopCamera}
-                  className="p-2.5 bg-rose-600/80 hover:bg-rose-600 backdrop-blur-md text-white rounded-xl transition"
+                  className="p-2 bg-rose-600/80 hover:bg-rose-600 backdrop-blur-md text-white rounded-xl transition cursor-pointer"
                   title="Tutup Kamera"
                 >
                   <Camera className="w-4 h-4" />
@@ -528,20 +528,20 @@ export default function ScannerLiveKioskView({
               </div>
             )}
 
-            {/* Live Scan Notification Toast Banner */}
+            {/* Live Scan Notification Toast Banner - Dipindahkan ke ATAS RATA TENGAH layar kamera dengan ukuran tulisan besar & jelas */}
             {lastScanResult && (
               <div
-                className={`absolute bottom-4 inset-x-4 md:inset-x-8 p-4 rounded-2xl backdrop-blur-md border shadow-2xl transition-all transform animate-bounce-once ${
+                className={`absolute top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-lg z-30 p-3.5 md:p-4 rounded-2xl backdrop-blur-md border shadow-2xl transition-all transform animate-in fade-in zoom-in-95 text-center flex flex-col items-center justify-center ${
                   lastScanResult.success
                     ? mode === 'pulang'
-                      ? 'bg-orange-950/90 border-orange-500 text-orange-100'
-                      : 'bg-emerald-950/90 border-emerald-500 text-emerald-100'
-                    : 'bg-rose-950/90 border-rose-500 text-rose-100'
+                      ? 'bg-orange-950/95 border-orange-500 text-orange-100 shadow-[0_0_35px_rgba(249,115,22,0.4)]'
+                      : 'bg-emerald-950/95 border-emerald-500 text-emerald-100 shadow-[0_0_35px_rgba(16,185,129,0.4)]'
+                    : 'bg-rose-950/95 border-rose-500 text-rose-100 shadow-[0_0_35px_rgba(244,63,94,0.4)]'
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center gap-2 mb-1">
                   <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                       lastScanResult.success
                         ? mode === 'pulang'
                           ? 'bg-orange-500 text-white'
@@ -550,23 +550,30 @@ export default function ScannerLiveKioskView({
                     }`}
                   >
                     {lastScanResult.success ? (
-                      mode === 'pulang' ? <LogOut className="w-7 h-7" /> : <CheckCircle2 className="w-7 h-7" />
+                      mode === 'pulang' ? <LogOut className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4 font-black" />
                     ) : (
-                      <AlertTriangle className="w-7 h-7" />
+                      <AlertTriangle className="w-4 h-4" />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-black text-sm md:text-base truncate">{lastScanResult.nama}</h4>
-                      {lastScanResult.jam && (
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-black/40">
-                          {lastScanResult.jam}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs opacity-90 mt-0.5">{lastScanResult.message}</p>
-                  </div>
+                  <span className="font-extrabold text-[11px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/40">
+                    {lastScanResult.success
+                      ? (mode === 'pulang' ? 'Presensi Pulang Berhasil' : 'Presensi Datang Berhasil')
+                      : 'Presensi Gagal'}
+                  </span>
+                  {lastScanResult.jam && (
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-black/50 text-white">
+                      {lastScanResult.jam}
+                    </span>
+                  )}
                 </div>
+
+                {/* Teks Nama Siswa Dibuat Besar dan Terlihat Jelas */}
+                <h3 className="font-black text-lg md:text-2xl text-white tracking-wide truncate max-w-full drop-shadow-sm">
+                  {lastScanResult.nama}
+                </h3>
+                <p className="text-xs md:text-sm font-semibold opacity-95 mt-0.5">
+                  {lastScanResult.message}
+                </p>
               </div>
             )}
           </div>
@@ -609,9 +616,9 @@ export default function ScannerLiveKioskView({
         </section>
 
         {/* Right Column: Attendance List strictly containing: Nama Siswa & Jam Datang / Jam Pulang */}
-        <section className="lg:col-span-5 flex flex-col bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+        <section className="lg:col-span-5 flex flex-col min-h-0 h-full bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
           {/* Header */}
-          <div className="p-4 bg-slate-800/80 border-b border-slate-700/60 flex items-center justify-between">
+          <div className="p-3.5 bg-slate-800/80 border-b border-slate-700/60 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${mode === 'pulang' ? 'bg-orange-500/20 text-orange-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
                 {mode === 'pulang' ? <LogOut className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
@@ -652,7 +659,7 @@ export default function ScannerLiveKioskView({
           </div>
 
           {/* Simple Table: strictly Nama Siswa & Jam Datang / Jam Pulang */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/60 text-slate-400 font-bold uppercase text-[10px] tracking-wider sticky top-0 backdrop-blur-xs border-b border-slate-800 z-10">
                 <tr>
@@ -745,7 +752,7 @@ export default function ScannerLiveKioskView({
           </div>
 
           {/* Footer Info */}
-          <div className="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <div className="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
             <span>Mode Saat Ini: <strong className="text-white capitalize">{mode === 'masuk' ? 'Datang' : 'Pulang'}</strong></span>
             <span>Total Siswa Tercatat: <strong className="text-emerald-400 font-mono">{presensiList.length}</strong></span>
           </div>

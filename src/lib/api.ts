@@ -99,8 +99,8 @@ export const api = {
   getAbsensiToday: (nisn: string) => apiRequest(`/absensi/today/${encodeURIComponent(nisn)}`),
   getMonitoring: (filterKelas?: string) =>
     apiRequest(`/absensi/monitoring${filterKelas ? `?filterKelas=${encodeURIComponent(filterKelas)}` : ''}`),
-  updateAbsensiStatus: (nisn: string, nama: string, kelas: string, status: string) =>
-    apiRequest('/absensi/status', { method: 'POST', body: JSON.stringify({ nisn, nama, kelas, status }) }),
+  updateAbsensiStatus: (nisn: string, nama: string, kelas: string, status: string, tanggal?: string) =>
+    apiRequest('/absensi/status', { method: 'POST', body: JSON.stringify({ nisn, nama, kelas, status, tanggal }) }),
   scanAbsensi: (nisn: string, scannerRole: string, scannerKelas: string, scanMode: string, clientTime?: string, clientDate?: string) =>
     apiRequest('/absensi/scan', { method: 'POST', body: JSON.stringify({ nisn, scannerRole, scannerKelas, scanMode, clientTime, clientDate }) }),
   batchScanAbsensi: (nisnList: string[], scannerRole: string, scannerKelas: string) =>

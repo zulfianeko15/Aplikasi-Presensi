@@ -737,14 +737,14 @@ apiRouter.get('/absensi/monitoring', async (req: Request, res: Response) => {
 // Update status (diperbolehkan juga di mode kiosk publik)
 apiRouter.post('/absensi/status', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { nisn, nama, kelas: siswaKelas, status: newStatus } = req.body;
+    const { nisn, nama, kelas: siswaKelas, status: newStatus, tanggal: clientTanggal } = req.body;
     const cleanNisn = String(nisn).trim();
-    const today = getTodayStr();
+    const today = (clientTanggal && /^\d{4}-\d{2}-\d{2}$/.test(clientTanggal)) ? clientTanggal : getTodayStr();
     const nowSecTime = getNowTimeSecStr();
 
     await storage.updateAbsensiStatus(today, cleanNisn, nama, siswaKelas, newStatus, nowSecTime);
 
-    return res.json({ success: true, message: 'Status berhasil diubah', jamDatang: nowSecTime });
+    return res.json({ success: true, message: 'Status berhasil diubah', jamDatang: nowSecTime, tanggal: today });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -993,16 +993,25 @@ apiRouter.get('/absensi/daftar-hadir', async (req: Request, res: Response) => {
 apiRouter.get('/absensi/daftar-hadir-detail', async (req: Request, res: Response) => {
   try {
     const { kelas: filterKelas, tanggal } = req.query as { kelas: string; tanggal: string };
-    if (!tanggal) return res.json({ success: true, data: {} });
+    const queryDate = (tanggal && /^\d{4}-\d{2}-\d{2}$/.test(tanggal)) ? tanggal : getTodayStr();
 
-    const records = await storage.getAbsensiByDate(tanggal);
+    const records = await storage.getAbsensiByDate(queryDate);
     const result: Record<string, { status: string; jamDatang: string; jamPulang: string; rowIndex: number }> = {};
     const allowed = filterKelas && filterKelas !== 'SEMUA' ? filterKelas.split(',').map(k => k.trim().toUpperCase()) : null;
 
     records.forEach(r => {
-      if (!allowed || allowed.includes(r.kelas.toUpperCase())) {
+      // Include student record if class matches or if checking all students; also include if NISN exists
+      if (!allowed || !r.kelas || allowed.includes(r.kelas.trim().toUpperCase())) {
         result[r.nisn] = {
-          status: r.status.toLowerCase(),
+          status: (r.status || 'Hadir').toLowerCase(),
+          jamDatang: r.jamDatang ? r.jamDatang.substring(0, 5) : '',
+          jamPulang: r.jamPulang ? r.jamPulang.substring(0, 5) : '',
+          rowIndex: r.id,
+        };
+      } else {
+        // Fallback: also provide record so client student list can look it up
+        result[r.nisn] = {
+          status: (r.status || 'Hadir').toLowerCase(),
           jamDatang: r.jamDatang ? r.jamDatang.substring(0, 5) : '',
           jamPulang: r.jamPulang ? r.jamPulang.substring(0, 5) : '',
           rowIndex: r.id,

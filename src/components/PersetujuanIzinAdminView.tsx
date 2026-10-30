@@ -18,7 +18,9 @@ import {
   FileCheck,
   Stethoscope,
   MapPin,
-  FileText
+  FileText,
+  Download,
+  Printer
 } from 'lucide-react';
 
 interface PersetujuanIzinAdminViewProps {
@@ -48,10 +50,59 @@ export default function PersetujuanIzinAdminView({
   const [actionType, setActionType] = useState<'Disetujui' | 'Ditolak'>('Disetujui');
   const [catatanAdmin, setCatatanAdmin] = useState('');
   const [processingReview, setProcessingReview] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; nama: string; jenis: string } | null>(null);
 
   const isImageDoc = (url: string) => {
-    return url.startsWith('data:image') || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(url);
+    return url.startsWith('data:image') || /\.(jpg|jpeg|png|webp|gif|svg)($|\?)/i.test(url);
+  };
+
+  const isPdfDoc = (url: string) => {
+    return url.startsWith('data:application/pdf') || /\.pdf($|\?)/i.test(url);
+  };
+
+  const handleDownloadDoc = (url: string, filename: string) => {
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      const isPdf = isPdfDoc(url);
+      const ext = isPdf ? '.pdf' : '.png';
+      a.download = filename.includes('.') ? filename : `${filename}${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('Mengunduh berkas dokumen...', 'info');
+    } catch {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handlePrintDoc = (url: string) => {
+    if (isPdfDoc(url)) {
+      const printWin = window.open(url, '_blank');
+      if (printWin) {
+        printWin.focus();
+      }
+    } else {
+      const printWin = window.open('', '_blank');
+      if (printWin) {
+        printWin.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Cetak Dokumen Lampiran Siswa</title>
+              <style>
+                body { margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #fff; }
+                img { max-width: 95%; max-height: 95vh; object-fit: contain; }
+              </style>
+            </head>
+            <body>
+              <img src="${url}" onload="window.print();" />
+            </body>
+          </html>
+        `);
+        printWin.document.close();
+      }
+    }
   };
 
   const fetchPengajuan = async () => {
@@ -300,26 +351,35 @@ export default function PersetujuanIzinAdminView({
                           </div>
                         </div>
 
-                        {isImageDoc(item.dokumenUrl) ? (
+                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                           <button
                             type="button"
-                            onClick={() => setPreviewImage(item.dokumenUrl)}
-                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                            onClick={() => setPreviewDoc({ url: item.dokumenUrl, nama: item.nama, jenis: item.jenis })}
+                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                            title="Lihat Berkas Dokumen"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>Lihat Bukti</span>
+                            <span>Lihat</span>
                           </button>
-                        ) : (
-                          <a
-                            href={item.dokumenUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDoc(item.dokumenUrl, `Dokumen_${item.nama.replace(/\s+/g, '_')}_${item.jenis}`)}
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                            title="Download Dokumen"
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Buka Link</span>
-                          </a>
-                        )}
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintDoc(item.dokumenUrl)}
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                            title="Cetak / Print Dokumen"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Print</span>
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -429,36 +489,66 @@ export default function PersetujuanIzinAdminView({
       )}
 
       {/* Lightbox Preview Modal for Admin Document Verification */}
-      {previewImage && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-3xl w-full p-4 shadow-2xl border border-slate-200 space-y-3 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+      {previewDoc && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3 md:p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-4 md:p-6 shadow-2xl border border-slate-200 space-y-3 animate-in fade-in zoom-in-95">
+            <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-2">
               <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <FileCheck className="w-4 h-4 text-emerald-600" />
-                <span>Verifikasi Berkas Bukti (Surat Sakit / Foto Koordinat GPS)</span>
+                <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Verifikasi Berkas ({previewDoc.nama} • {previewDoc.jenis})</span>
               </h3>
-              <button
-                type="button"
-                onClick={() => setPreviewImage(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadDoc(previewDoc.url, `Dokumen_${previewDoc.nama.replace(/\s+/g, '_')}_${previewDoc.jenis}`)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintDoc(previewDoc.url)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
+
             <div className="max-h-[72vh] overflow-auto rounded-2xl bg-slate-900 flex items-center justify-center p-2">
-              <img
-                src={previewImage}
-                alt="Dokumen Bukti"
-                className="max-h-[68vh] w-auto object-contain rounded-xl"
-              />
+              {isPdfDoc(previewDoc.url) ? (
+                <iframe
+                  src={previewDoc.url}
+                  title="Dokumen PDF Bukti Izin"
+                  className="w-full h-[68vh] rounded-xl border border-slate-700 bg-white"
+                />
+              ) : (
+                <img
+                  src={previewDoc.url}
+                  alt="Dokumen Bukti"
+                  className="max-h-[68vh] w-auto object-contain rounded-xl"
+                />
+              )}
             </div>
+
             <div className="flex justify-between items-center pt-1">
               <p className="text-[11px] text-slate-500">
-                Periksa keabsahan stempel dokter atau titik koordinat GPS sebelum menyetujui.
+                {isPdfDoc(previewDoc.url)
+                  ? 'Dokumen format PDF. Anda dapat membaca, mencetak, atau mengunduh berkas surat izin ini.'
+                  : 'Periksa keabsahan stempel dokter atau titik koordinat GPS sebelum menyetujui.'}
               </p>
               <button
                 type="button"
-                onClick={() => setPreviewImage(null)}
+                onClick={() => setPreviewDoc(null)}
                 className="px-4 py-2 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer"
               >
                 Tutup
