@@ -62,6 +62,11 @@ export default function ScannerLiveKioskView({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const isScanningRef = useRef(false);
+  const modeRef = useRef<'masuk' | 'pulang'>(mode);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Real-time clock updater
   useEffect(() => {
@@ -161,47 +166,63 @@ export default function ScannerLiveKioskView({
     const clean = rawNisn.replace(/[^a-zA-Z0-9]/g, '').trim();
     if (!clean) return;
 
+    const activeMode = modeRef.current; // ALWAYS read the active mode (masuk / pulang)
     try {
-      const res = await api.scanAbsensi(clean, 'guru', '', mode);
+      const nowObj = new Date();
+      const clientTime = nowObj.toLocaleTimeString('en-GB', { hour12: false });
+      const clientDate = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, '0')}-${String(nowObj.getDate()).padStart(2, '0')}`;
+      const res = await api.scanAbsensi(clean, 'guru', '', activeMode, clientTime, clientDate);
       const jamNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
 
       if (res && res.success) {
         playBeep(true);
         const studentName = res.nama || 'Siswa Terdaftar';
-        const displayJam = res.jamDatang || jamNow;
+        const displayJam = (activeMode === 'pulang' ? (res.jamPulang ? res.jamPulang.substring(0, 5) + ' WIB' : jamNow) : (res.jamDatang ? res.jamDatang.substring(0, 5) + ' WIB' : jamNow));
 
         setLastScanResult({
           nama: studentName,
           jam: displayJam,
-          message: res.message || 'Presensi Berhasil Dicatat',
+          message: res.message || (activeMode === 'pulang' ? 'Absen Pulang Berhasil' : 'Presensi Datang Berhasil'),
           success: true,
         });
 
-        // Prepend immediately to attendance list
+        // Prepend or update immediately in attendance list
         setPresensiList((prev) => {
           const exists = prev.some((p) => p.nisn === clean);
           if (exists) {
-            return prev.map((p) => (p.nisn === clean ? { ...p, jamDatang: displayJam } : p));
+            return prev.map((p) => {
+              if (p.nisn !== clean) return p;
+              if (activeMode === 'pulang') {
+                return {
+                  ...p,
+                  jamPulang: (res.jamPulang ? res.jamPulang.substring(0, 5) : displayJam.substring(0, 5)),
+                  keterangan: res.message || p.keterangan,
+                };
+              }
+              return { ...p, jamDatang: displayJam.substring(0, 5) };
+            });
           }
           return [
             {
               nisn: clean,
               nama: studentName,
               kelas: res.kelas || '',
-              jamDatang: displayJam,
+              jamDatang: res.jamDatang ? res.jamDatang.substring(0, 5) : (activeMode === 'masuk' ? displayJam.substring(0, 5) : '-'),
+              jamPulang: activeMode === 'pulang' ? (res.jamPulang ? res.jamPulang.substring(0, 5) : displayJam.substring(0, 5)) : '',
               status: 'Hadir',
+              keterangan: res.message || '',
             },
             ...prev,
           ];
         });
 
-        showToast(`✓ ${studentName}: Berhasil presensi`);
+        showToast(`✓ ${studentName}: ${res.message || 'Presensi berhasil'}`);
       } else {
         playBeep(false);
         setLastScanResult({
           nama: res?.nama || `NISN: ${clean}`,
           jam: jamNow,
-          message: res?.message || 'Presensi Gagal / Sudah Pernah Absen',
+          message: res?.message || 'Presensi Gagal / Tidak Memenuhi Syarat',
           success: false,
         });
       }
@@ -214,10 +235,10 @@ export default function ScannerLiveKioskView({
         success: false,
       });
     } finally {
-      // Clear announcement popup after 5 seconds
+      // Clear announcement popup after 6 seconds
       setTimeout(() => {
         setLastScanResult((current) => (current?.nama ? current : null));
-      }, 5000);
+      }, 6000);
     }
   };
 
@@ -430,18 +451,37 @@ export default function ScannerLiveKioskView({
             {/* Target Viewfinder Overlay */}
             {cameraActive && (
               <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-4">
-                <div className="relative w-64 h-64 sm:w-80 sm:h-80 border-2 border-emerald-400/60 rounded-3xl backdrop-brightness-105 shadow-[0_0_50px_rgba(16,185,129,0.15)] flex items-center justify-center">
+                <div
+                  className={`relative w-64 h-64 sm:w-80 sm:h-80 border-2 rounded-3xl backdrop-brightness-105 flex items-center justify-center transition-colors duration-300 ${
+                    mode === 'pulang'
+                      ? 'border-orange-500/70 shadow-[0_0_50px_rgba(249,115,22,0.25)]'
+                      : 'border-emerald-400/60 shadow-[0_0_50px_rgba(16,185,129,0.15)]'
+                  }`}
+                >
                   {/* Viewfinder Corners */}
-                  <div className="absolute -top-1 -left-1 w-7 h-7 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl"></div>
-                  <div className="absolute -top-1 -right-1 w-7 h-7 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl"></div>
-                  <div className="absolute -bottom-1 -left-1 w-7 h-7 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl"></div>
-                  <div className="absolute -bottom-1 -right-1 w-7 h-7 border-b-4 border-r-4 border-emerald-400 rounded-br-xl"></div>
+                  <div className={`absolute -top-1 -left-1 w-7 h-7 border-t-4 border-l-4 rounded-tl-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
+                  <div className={`absolute -top-1 -right-1 w-7 h-7 border-t-4 border-r-4 rounded-tr-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
+                  <div className={`absolute -bottom-1 -left-1 w-7 h-7 border-b-4 border-l-4 rounded-bl-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
+                  <div className={`absolute -bottom-1 -right-1 w-7 h-7 border-b-4 border-r-4 rounded-br-xl ${mode === 'pulang' ? 'border-orange-400' : 'border-emerald-400'}`}></div>
 
                   {/* Laser Beam Animation */}
-                  <div className="absolute inset-x-3 top-2 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_15px_#34d399] animate-pulse"></div>
+                  <div
+                    className={`absolute inset-x-3 top-2 h-1 bg-gradient-to-r from-transparent to-transparent animate-pulse ${
+                      mode === 'pulang'
+                        ? 'via-orange-400 shadow-[0_0_15px_#fb923c]'
+                        : 'via-emerald-400 shadow-[0_0_15px_#34d399]'
+                    }`}
+                  ></div>
 
-                  <p className="text-white/80 font-bold text-xs bg-black/60 px-3 py-1 rounded-full backdrop-blur-xs">
-                    Posisikan QR Kartu di Kotak Ini
+                  <p className="text-white/90 font-bold text-xs bg-black/75 px-3.5 py-1.5 rounded-full backdrop-blur-xs border border-white/10 flex items-center gap-1.5">
+                    {mode === 'pulang' ? (
+                      <>
+                        <LogOut className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Posisikan QR Kartu (Scan Pulang)</span>
+                      </>
+                    ) : (
+                      <span>Posisikan QR Kartu di Kotak Ini</span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -493,17 +533,27 @@ export default function ScannerLiveKioskView({
               <div
                 className={`absolute bottom-4 inset-x-4 md:inset-x-8 p-4 rounded-2xl backdrop-blur-md border shadow-2xl transition-all transform animate-bounce-once ${
                   lastScanResult.success
-                    ? 'bg-emerald-950/90 border-emerald-500 text-emerald-100'
+                    ? mode === 'pulang'
+                      ? 'bg-orange-950/90 border-orange-500 text-orange-100'
+                      : 'bg-emerald-950/90 border-emerald-500 text-emerald-100'
                     : 'bg-rose-950/90 border-rose-500 text-rose-100'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                      lastScanResult.success ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'
+                      lastScanResult.success
+                        ? mode === 'pulang'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-emerald-500 text-slate-950'
+                        : 'bg-rose-500 text-white'
                     }`}
                   >
-                    {lastScanResult.success ? <CheckCircle2 className="w-7 h-7" /> : <AlertTriangle className="w-7 h-7" />}
+                    {lastScanResult.success ? (
+                      mode === 'pulang' ? <LogOut className="w-7 h-7" /> : <CheckCircle2 className="w-7 h-7" />
+                    ) : (
+                      <AlertTriangle className="w-7 h-7" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
@@ -535,7 +585,7 @@ export default function ScannerLiveKioskView({
                     setManualNisn('');
                   }
                 }}
-                placeholder="Input NISN Manual / Arahkan Scanner USB MC26..."
+                placeholder={mode === 'pulang' ? 'Scan Absen Pulang: Input NISN / Scanner USB MC26...' : 'Input NISN Manual / Arahkan Scanner USB MC26...'}
                 className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-500"
               />
               <button
@@ -544,9 +594,11 @@ export default function ScannerLiveKioskView({
                   handleProcessScan(manualNisn);
                   setManualNisn('');
                 }}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shrink-0"
+                className={`px-4 py-2.5 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  mode === 'pulang' ? 'bg-orange-600 hover:bg-orange-500 active:scale-95' : 'bg-emerald-600 hover:bg-emerald-500 active:scale-95'
+                }`}
               >
-                <span>Scan</span>
+                <span>{mode === 'pulang' ? 'Scan Pulang' : 'Scan'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -556,28 +608,39 @@ export default function ScannerLiveKioskView({
           </div>
         </section>
 
-        {/* Right Column: Attendance List strictly containing: Nama Siswa & Jam Datang */}
+        {/* Right Column: Attendance List strictly containing: Nama Siswa & Jam Datang / Jam Pulang */}
         <section className="lg:col-span-5 flex flex-col bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
           {/* Header */}
           <div className="p-4 bg-slate-800/80 border-b border-slate-700/60 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                <Clock className="w-4 h-4" />
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${mode === 'pulang' ? 'bg-orange-500/20 text-orange-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
+                {mode === 'pulang' ? <LogOut className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
               </div>
               <div>
                 <h3 className="font-bold text-xs uppercase tracking-wider text-white">
-                  Daftar Hadir Hari Ini
+                  {mode === 'pulang' ? 'Daftar Presensi Pulang' : 'Daftar Hadir Hari Ini'}
                 </h3>
                 <p className="text-[10px] text-slate-400">
-                  Hanya menampilkan Nama Siswa & Jam Datang
+                  {mode === 'pulang' ? 'Menampilkan status siswa & jam kepulangan' : 'Hanya menampilkan Nama Siswa & Jam Datang'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                {presensiList.length} Hadir
-              </span>
+              {mode === 'pulang' ? (
+                <>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    {presensiList.filter(p => Boolean(p.jamPulang)).length} Pulang
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                    {presensiList.length} Hadir
+                  </span>
+                </>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  {presensiList.length} Hadir
+                </span>
+              )}
               <button
                 onClick={fetchTodayFeed}
                 className="p-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-300 transition"
@@ -588,20 +651,27 @@ export default function ScannerLiveKioskView({
             </div>
           </div>
 
-          {/* Simple Table: strictly Nama Siswa & Jam Datang */}
+          {/* Simple Table: strictly Nama Siswa & Jam Datang / Jam Pulang */}
           <div className="flex-1 overflow-y-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/60 text-slate-400 font-bold uppercase text-[10px] tracking-wider sticky top-0 backdrop-blur-xs border-b border-slate-800 z-10">
                 <tr>
                   <th className="p-3 w-10 text-center">#</th>
                   <th className="p-3">Nama Siswa</th>
-                  <th className="p-3 text-right">Jam Datang</th>
+                  {mode === 'pulang' ? (
+                    <>
+                      <th className="p-3 text-center">Datang</th>
+                      <th className="p-3 text-right">Jam Pulang</th>
+                    </>
+                  ) : (
+                    <th className="p-3 text-right">Jam Datang</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {presensiList.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="p-10 text-center text-slate-500">
+                    <td colSpan={mode === 'pulang' ? 4 : 3} className="p-10 text-center text-slate-500">
                       {loadingList ? (
                         <div className="flex flex-col items-center justify-center gap-2">
                           <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
@@ -612,7 +682,7 @@ export default function ScannerLiveKioskView({
                           <Clock className="w-8 h-8 mx-auto opacity-30 text-slate-400 mb-2" />
                           <p className="font-bold text-slate-400">Belum ada siswa yang hadir hari ini</p>
                           <p className="text-[11px] text-slate-500">
-                            Arahkan QR kartu siswa ke kamera untuk mencatat jam datang.
+                            Arahkan QR kartu siswa ke kamera untuk mencatat presensi.
                           </p>
                         </div>
                       )}
@@ -623,7 +693,11 @@ export default function ScannerLiveKioskView({
                     <tr
                       key={item.nisn}
                       className={`hover:bg-slate-800/40 transition ${
-                        idx === 0 ? 'bg-emerald-950/30' : ''
+                        idx === 0
+                          ? mode === 'pulang' && item.jamPulang
+                            ? 'bg-orange-950/30'
+                            : 'bg-emerald-950/30'
+                          : ''
                       }`}
                     >
                       <td className="p-3 text-center font-mono text-slate-500 text-[11px]">
@@ -639,11 +713,30 @@ export default function ScannerLiveKioskView({
                           </div>
                         )}
                       </td>
-                      <td className="p-3 text-right">
-                        <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 font-mono font-bold text-xs text-emerald-400">
-                          {item.jamDatang}
-                        </span>
-                      </td>
+                      {mode === 'pulang' ? (
+                        <>
+                          <td className="p-3 text-center font-mono text-slate-400 text-xs">
+                            {item.jamDatang || '-'}
+                          </td>
+                          <td className="p-3 text-right">
+                            {item.jamPulang ? (
+                              <span className="inline-block px-2.5 py-1 rounded-lg bg-orange-500/15 border border-orange-500/30 font-mono font-bold text-xs text-orange-400">
+                                {item.jamPulang}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 italic">
+                                Belum Pulang
+                              </span>
+                            )}
+                          </td>
+                        </>
+                      ) : (
+                        <td className="p-3 text-right">
+                          <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 font-mono font-bold text-xs text-emerald-400">
+                            {item.jamDatang}
+                          </span>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

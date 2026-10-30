@@ -101,8 +101,8 @@ export const api = {
     apiRequest(`/absensi/monitoring${filterKelas ? `?filterKelas=${encodeURIComponent(filterKelas)}` : ''}`),
   updateAbsensiStatus: (nisn: string, nama: string, kelas: string, status: string) =>
     apiRequest('/absensi/status', { method: 'POST', body: JSON.stringify({ nisn, nama, kelas, status }) }),
-  scanAbsensi: (nisn: string, scannerRole: string, scannerKelas: string, scanMode: string) =>
-    apiRequest('/absensi/scan', { method: 'POST', body: JSON.stringify({ nisn, scannerRole, scannerKelas, scanMode }) }),
+  scanAbsensi: (nisn: string, scannerRole: string, scannerKelas: string, scanMode: string, clientTime?: string, clientDate?: string) =>
+    apiRequest('/absensi/scan', { method: 'POST', body: JSON.stringify({ nisn, scannerRole, scannerKelas, scanMode, clientTime, clientDate }) }),
   batchScanAbsensi: (nisnList: string[], scannerRole: string, scannerKelas: string) =>
     apiRequest('/absensi/batch-scan', { method: 'POST', body: JSON.stringify({ nisnList, scannerRole, scannerKelas }) }),
   getDaftarHadir: (kelas: string, tanggal: string) =>
@@ -174,4 +174,29 @@ export const api = {
     apiRequest('/promosi/proses', { method: 'POST', body: JSON.stringify({ kelasAsal, kelasTujuan, promoData }) }),
   archiveAndResetYear: (namaArsip: string) =>
     apiRequest('/arsip/reset', { method: 'POST', body: JSON.stringify({ namaArsip }) }),
+
+  // Pengajuan Izin & Sakit
+  getPengajuanIzin: (filter?: { nisn?: string; status?: string; kelas?: string }) => {
+    const p = new URLSearchParams();
+    if (filter?.nisn) p.append('nisn', filter.nisn);
+    if (filter?.status) p.append('status', filter.status);
+    if (filter?.kelas) p.append('kelas', filter.kelas);
+    return apiRequest(`/pengajuan-izin?${p.toString()}`);
+  },
+  createPengajuanIzin: (data: {
+    nisn: string;
+    nama: string;
+    kelas?: string;
+    jenis: 'Izin' | 'Sakit';
+    tanggalMulai: string;
+    tanggalSelesai: string;
+    keterangan: string;
+    dokumenUrl?: string;
+  }) => apiRequest('/pengajuan-izin', { method: 'POST', body: JSON.stringify(data) }),
+  reviewPengajuanIzin: (id: number, status: 'Disetujui' | 'Ditolak', catatanAdmin?: string) =>
+    apiRequest(`/pengajuan-izin/${id}/review`, { method: 'POST', body: JSON.stringify({ status, catatanAdmin }) }),
+
+  // Siswa Bulanan Attendance
+  getSiswaBulanan: (nisn: string, bulan?: string) =>
+    apiRequest(`/absensi/siswa-bulanan/${encodeURIComponent(nisn)}${bulan ? `?bulan=${encodeURIComponent(bulan)}` : ''}`),
 };

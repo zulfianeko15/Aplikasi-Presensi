@@ -39,10 +39,15 @@ import {
   ShieldCheck,
   Database,
   ArrowRight,
-  Globe
+  Globe,
+  FileCheck,
+  Percent,
+  TrendingUp
 } from 'lucide-react';
 import PanduanDeployModal from './components/PanduanDeployModal.tsx';
 import ScannerLiveKioskView from './components/ScannerLiveKioskView.tsx';
+import PengajuanIzinSiswaView from './components/PengajuanIzinSiswaView.tsx';
+import PersetujuanIzinAdminView from './components/PersetujuanIzinAdminView.tsx';
 
 interface CurrentUser {
   role: 'admin' | 'guru' | 'wakel' | 'siswa';
@@ -249,33 +254,6 @@ export default function App() {
                   <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> High Scalability
                 </div>
               </div>
-
-              <div className="pt-4 border-t border-white/10">
-                <p className="text-[11px] text-slate-400 mb-2 font-semibold">Login Cepat Percobaan (Demo):</p>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => quickLogin('admin')}
-                    className="px-2.5 py-1 text-[11px] bg-indigo-600/60 hover:bg-indigo-600 text-white rounded-lg transition"
-                  >
-                    Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => quickLogin('guru')}
-                    className="px-2.5 py-1 text-[11px] bg-purple-600/60 hover:bg-purple-600 text-white rounded-lg transition"
-                  >
-                    Guru
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => quickLogin('siswa')}
-                    className="px-2.5 py-1 text-[11px] bg-emerald-600/60 hover:bg-emerald-600 text-white rounded-lg transition"
-                  >
-                    Siswa (NISN)
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -405,17 +383,6 @@ export default function App() {
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
-
-                <div className="mt-3 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setIsDeployGuideOpen(true)}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold transition flex items-center gap-1.5 py-1 px-3 rounded-lg hover:bg-indigo-50 border border-indigo-100"
-                  >
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Panduan Deploy & Konfigurasi Server Online</span>
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -515,6 +482,13 @@ export default function App() {
                 onClick={() => { setActiveView('monitoring'); setMobileMenuOpen(false); }}
               />
               <SidebarBtn
+                label="Persetujuan Izin"
+                icon={<ShieldCheck className="w-4 h-4 text-amber-300" />}
+                active={activeView === 'persetujuan-izin'}
+                collapsed={!isSidebarOpen}
+                onClick={() => { setActiveView('persetujuan-izin'); setMobileMenuOpen(false); }}
+              />
+              <SidebarBtn
                 label="Rekap Bulanan"
                 icon={<CalendarDays className="w-4 h-4" />}
                 active={activeView === 'rekap-bulanan'}
@@ -565,27 +539,38 @@ export default function App() {
             </>
           )}
 
-          {/* Student exclusive view */}
+          {/* Student exclusive views */}
           {currentUser.role === 'siswa' && (
-            <SidebarBtn
-              label="Kartu Digital Saya"
-              icon={<QrCode className="w-4 h-4" />}
-              active={activeView === 'kartu-saya'}
-              collapsed={!isSidebarOpen}
-              onClick={() => { setActiveView('kartu-saya'); setMobileMenuOpen(false); }}
-            />
+            <>
+              <SidebarBtn
+                label="Pengajuan Izin & Sakit"
+                icon={<FileSpreadsheet className="w-4 h-4 text-amber-300" />}
+                active={activeView === 'pengajuan-izin'}
+                collapsed={!isSidebarOpen}
+                onClick={() => { setActiveView('pengajuan-izin'); setMobileMenuOpen(false); }}
+              />
+              <SidebarBtn
+                label="Kartu Digital Saya"
+                icon={<QrCode className="w-4 h-4" />}
+                active={activeView === 'kartu-saya'}
+                collapsed={!isSidebarOpen}
+                onClick={() => { setActiveView('kartu-saya'); setMobileMenuOpen(false); }}
+              />
+            </>
           )}
 
-          {/* Panduan Deploy Online */}
-          <div className="pt-2 border-t border-indigo-900/40 my-2">
-            <SidebarBtn
-              label="Panduan Deploy"
-              icon={<Globe className="w-4 h-4 text-emerald-300" />}
-              active={isDeployGuideOpen}
-              collapsed={!isSidebarOpen}
-              onClick={() => { setIsDeployGuideOpen(true); setMobileMenuOpen(false); }}
-            />
-          </div>
+          {/* Panduan Deploy Online (Admin & Guru Only - HILANG UNTUK SISWA) */}
+          {currentUser.role !== 'siswa' && (
+            <div className="pt-2 border-t border-indigo-900/40 my-2">
+              <SidebarBtn
+                label="Panduan Deploy"
+                icon={<Globe className="w-4 h-4 text-emerald-300" />}
+                active={isDeployGuideOpen}
+                collapsed={!isSidebarOpen}
+                onClick={() => { setIsDeployGuideOpen(true); setMobileMenuOpen(false); }}
+              />
+            </div>
+          )}
         </nav>
 
         {/* Logout */}
@@ -634,7 +619,7 @@ export default function App() {
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span>{dbStatus.provider || 'Supabase PostgreSQL'} • Connected</span>
                   </div>
-                ) : (
+                ) : currentUser.role !== 'siswa' ? (
                   <button
                     onClick={() => setIsDeployGuideOpen(true)}
                     className="flex items-center gap-1.5 text-amber-600 hover:text-amber-700 underline cursor-pointer text-left"
@@ -643,6 +628,11 @@ export default function App() {
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                     <span>In-Memory (Supabase Belum Aktif) • Cek Panduan</span>
                   </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span>Sistem Terhubung</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -655,14 +645,16 @@ export default function App() {
                 {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </div>
-            <button
-              onClick={() => setIsDeployGuideOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition border border-indigo-200"
-              title="Panduan Lengkap Onlinekan Aplikasi & Konfigurasi Server"
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>Panduan Server</span>
-            </button>
+            {currentUser.role !== 'siswa' && (
+              <button
+                onClick={() => setIsDeployGuideOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition border border-indigo-200"
+                title="Panduan Lengkap Onlinekan Aplikasi & Konfigurasi Server"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Panduan Server</span>
+              </button>
+            )}
             <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
               <Bell className="w-4 h-4" />
             </div>
@@ -750,6 +742,21 @@ export default function App() {
               currentUser={currentUser}
             />
           )}
+
+          {activeView === 'pengajuan-izin' && currentUser.role === 'siswa' && (
+            <PengajuanIzinSiswaView
+              currentUser={currentUser}
+              showToast={showToast}
+            />
+          )}
+
+          {activeView === 'persetujuan-izin' && currentUser.role !== 'siswa' && (
+            <PersetujuanIzinAdminView
+              currentUser={currentUser}
+              kelasList={kelasList}
+              showToast={showToast}
+            />
+          )}
         </main>
       </div>
 
@@ -775,6 +782,379 @@ function SidebarBtn({ label, icon, active, collapsed, onClick }: any) {
       <span className="shrink-0">{icon}</span>
       {!collapsed && <span className="truncate">{label}</span>}
     </button>
+  );
+}
+
+// --------------------------------------------------------------------------
+// 0. STUDENT DASHBOARD VIEW (DENGAN LAPORAN KEHADIRAN BULANAN PRESENTASE)
+// --------------------------------------------------------------------------
+function StudentDashboardView({
+  currentUser,
+  siswaToday,
+  onNavigate,
+}: {
+  currentUser: CurrentUser;
+  siswaToday: any;
+  onNavigate: (v: string) => void;
+}) {
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [monthlyData, setMonthlyData] = useState<{
+    persentaseHadir: number;
+    totalHadir: number;
+    totalSakit: number;
+    totalIzin: number;
+    totalAlpa: number;
+    totalTerlambat: number;
+    totalTercatat: number;
+    records: any[];
+  } | null>(null);
+  const [loadingMonthly, setLoadingMonthly] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser.nisn) return;
+    setLoadingMonthly(true);
+    api.getSiswaBulanan(currentUser.nisn, selectedMonth)
+      .then((res) => {
+        if (res && res.success && res.data) {
+          setMonthlyData(res.data);
+        }
+      })
+      .catch((err) => console.warn('Gagal memuat rekap bulanan siswa:', err))
+      .finally(() => setLoadingMonthly(false));
+  }, [currentUser.nisn, selectedMonth]);
+
+  const formatBulanIndo = (ym: string) => {
+    if (!ym) return '';
+    const [y, m] = ym.split('-');
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const idx = parseInt(m, 10) - 1;
+    return `${months[idx] || m} ${y}`;
+  };
+
+  const percentage = monthlyData ? monthlyData.persentaseHadir : 100;
+  // Circumference for r=38 is 2 * PI * 38 = 238.76
+  const strokeDashoffset = 238.76 - (238.76 * percentage) / 100;
+
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* 1. Header Hero Card with Today's Status */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative overflow-hidden">
+        <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/15 text-indigo-200 backdrop-blur-md mb-2 border border-white/10">
+              <School className="w-3.5 h-3.5 text-indigo-300" />
+              <span>Portal Siswa Terpadu</span>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black tracking-tight">Halo, {currentUser.nama}!</h2>
+            <p className="text-xs text-indigo-200 mt-1">
+              Kelas <strong className="text-white">{currentUser.kelas}</strong> • NISN <strong className="text-white font-mono">{currentUser.nisn}</strong>
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
+            <button
+              onClick={() => onNavigate('pengajuan-izin')}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-extrabold rounded-2xl text-xs transition shadow-lg shadow-amber-900/30 flex items-center gap-2 cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Ajukan Izin / Sakit</span>
+            </button>
+            <button
+              onClick={() => onNavigate('kartu-saya')}
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold rounded-2xl text-xs transition border border-white/20 flex items-center gap-2 cursor-pointer"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>QR Kartu</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Today's Arrival & Departure Times */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+          <div className="bg-black/25 backdrop-blur-md rounded-2xl p-4 border border-white/10 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider block">
+                Jam Datang Hari Ini
+              </span>
+              <p className="text-2xl font-mono font-bold mt-1 text-emerald-300">
+                {siswaToday?.data?.jamDatang || '--:--'}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
+              <CheckCircle className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-black/25 backdrop-blur-md rounded-2xl p-4 border border-white/10 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider block">
+                Jam Pulang Hari Ini
+              </span>
+              <p className="text-2xl font-mono font-bold mt-1 text-orange-300">
+                {siswaToday?.data?.jamPulang || '--:--'}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-300 flex items-center justify-center">
+              <LogOut className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+
+        {siswaToday?.isLibur && (
+          <div className="mt-4 bg-rose-500/20 border border-rose-500/30 rounded-2xl p-3 flex items-center gap-2.5 text-xs text-rose-200 font-semibold">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-300" />
+            <span>Pemberitahuan: {siswaToday?.keteranganLibur || 'Hari ini adalah hari libur sekolah.'}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 2. LAPORAN KEHADIRAN BULANAN (PRESENTASE) */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Percent className="w-4 h-4" />
+              </div>
+              <h3 className="font-black text-lg text-slate-900">Laporan Kehadiran Perbulan</h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tingkat kehadiran siswa dihitung secara akurat dalam bentuk persentase bulanan
+            </p>
+          </div>
+
+          {/* Month Selector */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+              Pilih Bulan:
+            </label>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {loadingMonthly ? (
+          <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
+            <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
+            <span>Menghitung persentase kehadiran {formatBulanIndo(selectedMonth)}...</span>
+          </div>
+        ) : (
+          <>
+            {/* Highlight Presentase Banner */}
+            <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-xl flex flex-col md:flex-row items-center gap-6">
+              {/* Circular Gauge */}
+              <div className="relative w-32 h-32 shrink-0 flex items-center justify-center">
+                <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="38"
+                    stroke="currentColor"
+                    strokeWidth="9"
+                    className="text-white/10"
+                    fill="transparent"
+                  />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="38"
+                    stroke="currentColor"
+                    strokeWidth="9"
+                    strokeDasharray={238.76}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    className={`transition-all duration-1000 ease-out ${
+                      percentage >= 90
+                        ? 'text-emerald-400'
+                        : percentage >= 75
+                        ? 'text-indigo-400'
+                        : 'text-amber-400'
+                    }`}
+                    fill="transparent"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-black font-mono tracking-tight">{percentage}%</span>
+                  <span className="text-[9px] uppercase font-bold text-slate-300">Kehadiran</span>
+                </div>
+              </div>
+
+              {/* Detail Info text */}
+              <div className="flex-1 text-center md:text-left space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>
+                    {percentage >= 90
+                      ? 'Sangat Baik (Disiplin Tinggi)'
+                      : percentage >= 75
+                      ? 'Cukup Baik'
+                      : 'Perlu Ditingkatkan'}
+                  </span>
+                </div>
+                <h4 className="text-lg md:text-xl font-black text-white">
+                  Tingkat Kehadiran Bulan {formatBulanIndo(selectedMonth)}
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                  Anda telah hadir sebanyak <strong className="text-emerald-400 font-bold">{monthlyData?.totalHadir || 0} hari</strong> dari total{' '}
+                  <strong className="text-white font-bold">{monthlyData?.totalTercatat || 0} hari sekolah tercatat</strong> pada periode bulan ini.
+                </p>
+              </div>
+            </div>
+
+            {/* 5 Statistics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Hadir</span>
+                <p className="text-2xl font-black text-emerald-800 mt-1">{monthlyData?.totalHadir || 0}</p>
+                <span className="text-[10px] text-emerald-600 font-semibold">Hari</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 text-center">
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Sakit</span>
+                <p className="text-2xl font-black text-amber-800 mt-1">{monthlyData?.totalSakit || 0}</p>
+                <span className="text-[10px] text-amber-600 font-semibold">Hari</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 text-center">
+                <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">Izin</span>
+                <p className="text-2xl font-black text-blue-800 mt-1">{monthlyData?.totalIzin || 0}</p>
+                <span className="text-[10px] text-blue-600 font-semibold">Hari</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-100 text-center">
+                <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">Alpa</span>
+                <p className="text-2xl font-black text-rose-800 mt-1">{monthlyData?.totalAlpa || 0}</p>
+                <span className="text-[10px] text-rose-600 font-semibold">Hari</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-purple-50 border border-purple-100 text-center col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">Terlambat</span>
+                <p className="text-2xl font-black text-purple-800 mt-1">{monthlyData?.totalTerlambat || 0}</p>
+                <span className="text-[10px] text-purple-600 font-semibold">Kali</span>
+              </div>
+            </div>
+
+            {/* Daily History Table for Selected Month */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-indigo-600" />
+                  <span>Rincian Absensi Harian ({formatBulanIndo(selectedMonth)})</span>
+                </h4>
+                <span className="text-xs text-slate-400 font-medium">
+                  {monthlyData?.records?.length || 0} Catatan
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Tanggal</th>
+                      <th className="p-3 text-center">Jam Datang</th>
+                      <th className="p-3 text-center">Jam Pulang</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3">Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {!monthlyData?.records || monthlyData.records.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400">
+                          Belum ada catatan presensi pada bulan {formatBulanIndo(selectedMonth)}.
+                        </td>
+                      </tr>
+                    ) : (
+                      monthlyData.records.map((r: any, idx: number) => {
+                        const st = r.status || 'Hadir';
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/80 transition">
+                            <td className="p-3 font-semibold text-slate-800">
+                              {r.tanggal}
+                            </td>
+                            <td className="p-3 text-center font-mono font-bold text-slate-700">
+                              {r.jamDatang ? r.jamDatang.substring(0, 5) : '-'}
+                            </td>
+                            <td className="p-3 text-center font-mono font-bold text-slate-700">
+                              {r.jamPulang ? r.jamPulang.substring(0, 5) : '-'}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                  st === 'Hadir'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : st === 'Sakit'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : st === 'Izin'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {st}
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600 text-[11px]">
+                              {r.keterangan || (st === 'Hadir' ? 'Tepat Waktu' : '-')}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 3. Action Banner */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button
+          onClick={() => onNavigate('pengajuan-izin')}
+          className="p-5 bg-white hover:bg-slate-50 active:scale-[0.99] rounded-3xl border border-slate-200 shadow-xs flex items-center justify-between text-left transition cursor-pointer group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-black text-sm text-slate-900">Form Pengajuan Izin / Sakit</h4>
+              <p className="text-xs text-slate-500 mt-0.5">Kirim surat permohonan izin untuk diverifikasi guru</p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 transition" />
+        </button>
+
+        <button
+          onClick={() => onNavigate('kartu-saya')}
+          className="p-5 bg-white hover:bg-slate-50 active:scale-[0.99] rounded-3xl border border-slate-200 shadow-xs flex items-center justify-between text-left transition cursor-pointer group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 text-indigo-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+              <QrCode className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-black text-sm text-slate-900">Kartu Pelajar Digital (QR)</h4>
+              <p className="text-xs text-slate-500 mt-0.5">Tampilkan kode QR untuk scan di gerbang sekolah</p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -813,44 +1193,11 @@ function DashboardView({ currentUser, onNavigate }: { currentUser: CurrentUser; 
 
   if (currentUser.role === 'siswa') {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-purple-700 rounded-3xl p-6 md:p-8 text-white shadow-xl">
-          <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider mb-2">Presensi Harian Siswa</p>
-          <h2 className="text-2xl md:text-3xl font-black mb-1">Halo, {currentUser.nama}!</h2>
-          <p className="text-indigo-100 text-xs mb-6">Kelas {currentUser.kelas} • NISN {currentUser.nisn}</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-              <span className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Jam Masuk (Datang)</span>
-              <p className="text-2xl font-mono font-bold mt-1">
-                {siswaToday?.data?.jamDatang || '--:--'}
-              </p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-              <span className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Jam Pulang</span>
-              <p className="text-2xl font-mono font-bold mt-1">
-                {siswaToday?.data?.jamPulang || '--:--'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {siswaToday?.isLibur && (
-          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center gap-3 text-rose-700 text-xs font-bold">
-            <AlertTriangle className="w-5 h-5 shrink-0" />
-            <span>{siswaToday?.keteranganLibur || 'Hari ini adalah hari libur.'}</span>
-          </div>
-        )}
-
-        <div className="flex gap-4">
-          <button
-            onClick={() => onNavigate('kartu-saya')}
-            className="flex-1 py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm"
-          >
-            <QrCode className="w-5 h-5" /> Tampilkan Kartu Pelajar Digital (QR)
-          </button>
-        </div>
-      </div>
+      <StudentDashboardView
+        currentUser={currentUser}
+        siswaToday={siswaToday}
+        onNavigate={onNavigate}
+      />
     );
   }
 
@@ -1029,7 +1376,10 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
     if (!clean) return;
 
     try {
-      const res = await api.scanAbsensi(clean, currentUser.role, currentUser.kelas || '', mode);
+      const nowObj = new Date();
+      const clientTime = nowObj.toLocaleTimeString('en-GB', { hour12: false });
+      const clientDate = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, '0')}-${String(nowObj.getDate()).padStart(2, '0')}`;
+      const res = await api.scanAbsensi(clean, currentUser.role, currentUser.kelas || '', mode, clientTime, clientDate);
       if (res.success) {
         playBeep(true);
         setScanMessage({ text: `✓ ${res.nama}: ${res.message}`, success: true });
@@ -1701,6 +2051,8 @@ function DataSiswaView({ kelasList, showToast, dbStatus }: { kelasList: string[]
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ nisn: string; nama: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState({
     nama: '',
     nisn: '',
@@ -1749,14 +2101,23 @@ function DataSiswaView({ kelasList, showToast, dbStatus }: { kelasList: string[]
     }
   };
 
-  const handleDelete = async (nisn: string, nama: string) => {
-    if (!window.confirm(`Hapus siswa "${nama}" secara permanen?`)) return;
+  const executeDelete = async () => {
+    if (!deleteConfirm) return;
+    setIsDeleting(true);
+    const targetNisn = deleteConfirm.nisn;
+    const targetNama = deleteConfirm.nama;
     try {
-      await api.deleteSiswa(nisn);
-      showToast('Siswa berhasil dihapus.');
-      loadData();
+      // Optimistic UI removal so student vanishes immediately
+      setStudents(prev => prev.filter(s => s.nisn !== targetNisn));
+      await api.deleteSiswa(targetNisn);
+      showToast(`Data siswa "${targetNama}" berhasil dihapus permanen.`);
+      setDeleteConfirm(null);
+      await loadData();
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Gagal menghapus siswa', 'error');
+      await loadData();
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -2055,7 +2416,7 @@ function DataSiswaView({ kelasList, showToast, dbStatus }: { kelasList: string[]
                         <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(s.nisn, s.nama)}
+                        onClick={() => setDeleteConfirm({ nisn: s.nisn, nama: s.nama })}
                         className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition"
                         title="Hapus"
                       >
@@ -2169,6 +2530,39 @@ function DataSiswaView({ kelasList, showToast, dbStatus }: { kelasList: string[]
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-slate-900 mb-1">Hapus Data Siswa</h3>
+            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+              Apakah Anda yakin ingin menghapus siswa <strong className="text-slate-800">{deleteConfirm.nama}</strong> (NISN: {deleteConfirm.nisn}) secara permanen? Data presensi terkait juga akan dibersihkan.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={executeDelete}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white transition flex items-center justify-center gap-1.5 shadow-md shadow-rose-200"
+              >
+                {isDeleting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Ya, Hapus'}
+              </button>
+            </div>
           </div>
         </div>
       )}

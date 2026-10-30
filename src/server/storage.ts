@@ -80,6 +80,23 @@ export interface LogWaRecord {
   status: string;
 }
 
+export interface PengajuanIzinRecord {
+  id: number;
+  nisn: string;
+  nama: string;
+  kelas: string;
+  jenis: 'Izin' | 'Sakit';
+  tanggalMulai: string; // YYYY-MM-DD
+  tanggalSelesai: string; // YYYY-MM-DD
+  keterangan: string;
+  dokumenUrl?: string;
+  status: 'Menunggu Persetujuan' | 'Disetujui' | 'Ditolak';
+  catatanAdmin?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  createdAt: string;
+}
+
 // In-memory initial seed state
 let memoryUsers: UserRecord[] = [
   { id: 1, username: 'admin', password: 'admin123', role: 'admin', nama: 'Administrator', kelas: '' },
@@ -112,6 +129,7 @@ let memoryAbsensiSholat: AbsensiSholatRecord[] = [];
 let memoryHariLibur: HariLiburRecord[] = [];
 let memorySessions: SessionRecord[] = [];
 let memoryLogWa: LogWaRecord[] = [];
+let memoryPengajuanIzin: PengajuanIzinRecord[] = [];
 
 let memoryConfig: Record<string, string> = {
   jam_masuk_mulai: '06:00',
@@ -303,7 +321,28 @@ export async function initStorage() {
             expires_at TIMESTAMP NOT NULL,
             created_at TIMESTAMP DEFAULT NOW()
           );
+
+          CREATE TABLE IF NOT EXISTS pengajuan_izin (
+            id SERIAL PRIMARY KEY,
+            nisn TEXT NOT NULL,
+            nama TEXT NOT NULL,
+            kelas TEXT NOT NULL,
+            jenis TEXT NOT NULL,
+            tanggal_mulai TEXT NOT NULL,
+            tanggal_selesai TEXT NOT NULL,
+            keterangan TEXT NOT NULL,
+            dokumen_url TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'Menunggu Persetujuan',
+            catatan_admin TEXT DEFAULT '',
+            reviewed_at TEXT DEFAULT '',
+            reviewed_by TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT NOW()
+          );
         `);
+
+        // Check if initial master seeding was already executed
+        const seedCheck = await client.query("SELECT value FROM konfigurasi WHERE key = 'seed_completed'");
+        const alreadySeeded = seedCheck.rows.length > 0 && seedCheck.rows[0].value === 'true';
 
         // Seed users if empty
         const userCheck = await client.query('SELECT COUNT(*) FROM users');
@@ -323,15 +362,18 @@ export async function initStorage() {
           }
         }
 
-        // Seed siswa if empty
-        const siswaCheck = await client.query('SELECT COUNT(*) FROM siswa');
-        if (parseInt(siswaCheck.rows[0].count) === 0) {
-          for (const s of memorySiswa) {
-            await client.query(
-              'INSERT INTO siswa (nisn, nama, jenis_kelamin, tanggal_lahir, agama, nama_ayah, nama_ibu, no_hp, kelas, alamat) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
-              [s.nisn, s.nama, s.jenisKelamin, s.tanggalLahir, s.agama, s.namaAyah, s.namaIbu, s.noHp, s.kelas, s.alamat]
-            );
+        // Seed siswa ONLY once upon very first initial install, NEVER re-seed if user deleted records
+        if (!alreadySeeded) {
+          const siswaCheck = await client.query('SELECT COUNT(*) FROM siswa');
+          if (parseInt(siswaCheck.rows[0].count) === 0) {
+            for (const s of memorySiswa) {
+              await client.query(
+                'INSERT INTO siswa (nisn, nama, jenis_kelamin, tanggal_lahir, agama, nama_ayah, nama_ibu, no_hp, kelas, alamat) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (nisn) DO NOTHING',
+                [s.nisn, s.nama, s.jenisKelamin, s.tanggalLahir, s.agama, s.namaAyah, s.namaIbu, s.noHp, s.kelas, s.alamat]
+              );
+            }
           }
+          await client.query("INSERT INTO konfigurasi (key, value) VALUES ('seed_completed', 'true') ON CONFLICT (key) DO UPDATE SET value = 'true'");
         }
 
         // Seed konfigurasi if empty
@@ -508,11 +550,14 @@ export const storage = {
   async deleteSiswa(nisn: string): Promise<void> {
     const clean = nisn.replace(/'/g, '').trim();
     await ensureConnection();
+    memorySiswa = memorySiswa.filter(s => s.nisn !== clean);
     if (isPgActive && pgPool) {
-      await pgPool.query('DELETE FROM siswa WHERE nisn = $1', [clean]);
+      await pgPool.query('DELETE FROM absensi WHERE TRIM(nisn) = $1 OR nisn = $1', [clean]);
+      await pgPool.query('DELETE FROM absensi_sholat WHERE TRIM(nisn) = $1 OR nisn = $1', [clean]);
+      await pgPool.query('DELETE FROM log_notifikasi_wa WHERE TRIM(nisn) = $1 OR nisn = $1', [clean]);
+      await pgPool.query('DELETE FROM siswa WHERE TRIM(nisn) = $1 OR nisn = $1', [clean]);
       return;
     }
-    memorySiswa = memorySiswa.filter(s => s.nisn !== clean);
   },
 
   // Kelas
@@ -795,17 +840,145 @@ export const storage = {
     });
   },
 
-  // Reset / Archive
+  // Pengajuan Izin & Sakit
+  async getAllPengajuan(filter?: { nisn?: string; status?: string; kelas?: string }): Promise<PengajuanIzinRecord[]> {
+    await ensureConnection();
+    if (isPgActive && pgPool) {
+      let q = 'SELECT id, nisn, nama, kelas, jenis, tanggal_mulai as "tanggalMulai", tanggal_selesai as "tanggalSelesai", keterangan, dokumen_url as "dokumenUrl", status, catatan_admin as "catatanAdmin", reviewed_at as "reviewedAt", reviewed_by as "reviewedBy", created_at as "createdAt" FROM pengajuan_izin WHERE 1=1';
+      const params: any[] = [];
+      if (filter?.nisn) {
+        params.push(filter.nisn);
+        q += ` AND nisn = $${params.length}`;
+      }
+      if (filter?.status && filter.status !== 'SEMUA') {
+        params.push(filter.status);
+        q += ` AND status = $${params.length}`;
+      }
+      if (filter?.kelas && filter.kelas !== 'SEMUA') {
+        const arr = filter.kelas.split(',').map(k => k.trim()).filter(Boolean);
+        if (arr.length > 0) {
+          params.push(arr);
+          q += ` AND kelas = ANY($${params.length})`;
+        }
+      }
+      q += ' ORDER BY id DESC';
+      const res = await pgPool.query(q, params);
+      return res.rows;
+    }
+
+    let list = [...memoryPengajuanIzin];
+    if (filter?.nisn) list = list.filter(p => p.nisn === filter.nisn);
+    if (filter?.status && filter.status !== 'SEMUA') list = list.filter(p => p.status === filter.status);
+    if (filter?.kelas && filter.kelas !== 'SEMUA') {
+      const arr = filter.kelas.split(',').map(k => k.trim().toUpperCase());
+      list = list.filter(p => arr.includes(p.kelas.toUpperCase()));
+    }
+    return list.sort((a, b) => b.id - a.id);
+  },
+
+  async createPengajuan(p: Omit<PengajuanIzinRecord, 'id' | 'status' | 'createdAt'>): Promise<PengajuanIzinRecord> {
+    await ensureConnection();
+    const nowStr = new Date().toISOString();
+    if (isPgActive && pgPool) {
+      const res = await pgPool.query(
+        'INSERT INTO pengajuan_izin (nisn, nama, kelas, jenis, tanggal_mulai, tanggal_selesai, keterangan, dokumen_url, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, nisn, nama, kelas, jenis, tanggal_mulai as "tanggalMulai", tanggal_selesai as "tanggalSelesai", keterangan, dokumen_url as "dokumenUrl", status, catatan_admin as "catatanAdmin", created_at as "createdAt"',
+        [p.nisn, p.nama, p.kelas, p.jenis, p.tanggalMulai, p.tanggalSelesai, p.keterangan, p.dokumenUrl || '', 'Menunggu Persetujuan']
+      );
+      return res.rows[0];
+    }
+
+    const rec: PengajuanIzinRecord = {
+      id: Date.now(),
+      status: 'Menunggu Persetujuan',
+      createdAt: nowStr,
+      ...p,
+    };
+    memoryPengajuanIzin.unshift(rec);
+    return rec;
+  },
+
+  async reviewPengajuan(id: number, status: 'Disetujui' | 'Ditolak', catatanAdmin = '', adminName = 'Admin'): Promise<PengajuanIzinRecord | null> {
+    await ensureConnection();
+    const nowStr = new Date().toLocaleString('id-ID');
+
+    let target: PengajuanIzinRecord | null = null;
+    if (isPgActive && pgPool) {
+      const res = await pgPool.query(
+        'UPDATE pengajuan_izin SET status = $1, catatan_admin = $2, reviewed_at = $3, reviewed_by = $4 WHERE id = $5 RETURNING id, nisn, nama, kelas, jenis, tanggal_mulai as "tanggalMulai", tanggal_selesai as "tanggalSelesai", keterangan, status',
+        [status, catatanAdmin, nowStr, adminName, id]
+      );
+      target = res.rows[0] || null;
+    } else {
+      const idx = memoryPengajuanIzin.findIndex(item => item.id === id);
+      if (idx !== -1) {
+        memoryPengajuanIzin[idx].status = status;
+        memoryPengajuanIzin[idx].catatanAdmin = catatanAdmin;
+        memoryPengajuanIzin[idx].reviewedAt = nowStr;
+        memoryPengajuanIzin[idx].reviewedBy = adminName;
+        target = memoryPengajuanIzin[idx];
+      }
+    }
+
+    // If approved, automatically propagate Izin/Sakit to the absensi records for all dates in the range!
+    if (target && status === 'Disetujui') {
+      const startDate = new Date(target.tanggalMulai + 'T00:00:00');
+      const endDate = new Date(target.tanggalSelesai + 'T00:00:00');
+      
+      const cur = new Date(startDate);
+      while (cur <= endDate) {
+        const y = cur.getFullYear();
+        const m = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        const dStr = `${y}-${m}-${d}`;
+
+        await this.updateAbsensiStatus(
+          dStr,
+          target.nisn,
+          target.nama,
+          target.kelas,
+          target.jenis,
+          ''
+        );
+
+        if (isPgActive && pgPool) {
+          await pgPool.query(
+            'UPDATE absensi SET keterangan = $1 WHERE tanggal = $2 AND nisn = $3',
+            [`${target.jenis} disetujui Admin: ${target.keterangan}`, dStr, target.nisn]
+          );
+        } else {
+          const a = memoryAbsensi.find(x => x.tanggal === dStr && x.nisn === target.nisn);
+          if (a) a.keterangan = `${target.jenis} disetujui Admin: ${target.keterangan}`;
+        }
+
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    return target;
+  },
+
+  async getAbsensiMonthByNisn(nisn: string, ym: string): Promise<AbsensiRecord[]> {
+    const clean = nisn.replace(/'/g, '').trim();
+    await ensureConnection();
+    if (isPgActive && pgPool) {
+      const res = await pgPool.query(
+        'SELECT id, tanggal, nisn, nama, kelas, jam_datang as "jamDatang", jam_pulang as "jamPulang", keterangan, status FROM absensi WHERE nisn = $1 AND tanggal LIKE $2 ORDER BY tanggal ASC',
+        [clean, ym + '%']
+      );
+      return res.rows;
+    }
+    return memoryAbsensi.filter(a => a.nisn === clean && a.tanggal.startsWith(ym));
+  },
+
   async clearAcademicYear(): Promise<void> {
+    await ensureConnection();
     if (isPgActive && pgPool) {
       await pgPool.query('DELETE FROM absensi');
       await pgPool.query('DELETE FROM absensi_sholat');
-      await pgPool.query('DELETE FROM log_notifikasi_wa');
       return;
     }
-    memoryAbsensi = [];
-    memoryAbsensiSholat = [];
-    memoryLogWa = [];
+    memoryAbsensi.length = 0;
+    memoryAbsensiSholat.length = 0;
   },
 
   getDatabaseStatus() {

@@ -10,28 +10,60 @@ apiRouter.get('/database/status', (_req: Request, res: Response) => {
   return res.json({ success: true, ...storage.getDatabaseStatus() });
 });
 
-// Helper: Format date/time
-const getTodayStr = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// Helper: Format date/time in Indonesian Western Time (Asia/Jakarta - WIB / UTC+7)
+export const getWibDateTime = (clientTime?: string, clientDate?: string) => {
+  if (clientDate && clientTime && /^\d{4}-\d{2}-\d{2}$/.test(clientDate)) {
+    const timeClean = clientTime.replace('.', ':');
+    const timeParts = timeClean.split(':');
+    const h = String(timeParts[0] || '00').padStart(2, '0');
+    const m = String(timeParts[1] || '00').padStart(2, '0');
+    const s = String(timeParts[2] || '00').padStart(2, '0');
+    return {
+      dateStr: clientDate,
+      timeStr: `${h}:${m}`,
+      timeSecStr: `${h}:${m}:${s}`,
+    };
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date());
+  const map: Record<string, string> = {};
+  parts.forEach(p => { map[p.type] = p.value; });
+
+  const dateStr = clientDate && /^\d{4}-\d{2}-\d{2}$/.test(clientDate) ? clientDate : `${map.year}-${map.month}-${map.day}`;
+  let timeStr = `${map.hour}:${map.minute}`;
+  let timeSecStr = `${map.hour}:${map.minute}:${map.second}`;
+
+  if (clientTime && /^\d{1,2}[:.]\d{2}/.test(clientTime)) {
+    const clean = clientTime.replace('.', ':');
+    const p = clean.split(':');
+    timeStr = `${p[0].padStart(2, '0')}:${p[1].padStart(2, '0')}`;
+    timeSecStr = `${timeStr}:${(p[2] || '00').padStart(2, '0')}`;
+  }
+
+  return { dateStr, timeStr, timeSecStr };
 };
 
-const getNowTimeStr = () => {
-  const d = new Date();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
+const getTodayStr = (clientDate?: string) => {
+  return getWibDateTime(undefined, clientDate).dateStr;
 };
 
-const getNowTimeSecStr = () => {
-  const d = new Date();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
+const getNowTimeStr = (clientTime?: string) => {
+  return getWibDateTime(clientTime).timeStr;
+};
+
+const getNowTimeSecStr = (clientTime?: string) => {
+  return getWibDateTime(clientTime).timeSecStr;
 };
 
 const calculateTimeDiffMinutes = (startTime: string, endTime: string) => {
@@ -42,7 +74,7 @@ const calculateTimeDiffMinutes = (startTime: string, endTime: string) => {
 
 // Helper: Check holiday and schedule
 async function checkHolidayStatus(dateStr: string, config: any) {
-  const d = new Date(dateStr + 'T00:00:00');
+  const d = new Date(dateStr + 'T12:00:00+07:00');
   let jsDay = d.getDay(); // 0=Sunday, 1=Monday... 6=Saturday
   const dayKey = jsDay === 0 ? '7' : String(jsDay);
   const dayNames: Record<string, string> = { '1': 'Senin', '2': 'Selasa', '3': 'Rabu', '4': 'Kamis', '5': 'Jumat', '6': 'Sabtu', '7': 'Minggu' };
@@ -601,10 +633,26 @@ apiRouter.post('/config', requireAuth, async (req: Request, res: Response) => {
     if (newConfig.jam_pulang_mulai) await storage.saveConfigKey('jam_pulang_mulai', newConfig.jam_pulang_mulai);
     if (newConfig.jam_pulang_akhir) await storage.saveConfigKey('jam_pulang_akhir', newConfig.jam_pulang_akhir);
     if (newConfig.mode_absen) await storage.saveConfigKey('mode_absen', newConfig.mode_absen);
+
+    // Sync into jadwal_harian so daily schedules match current setting
+    let jadwalHarian: any = {};
     if (newConfig.jadwal_harian) {
-      const val = typeof newConfig.jadwal_harian === 'string' ? newConfig.jadwal_harian : JSON.stringify(newConfig.jadwal_harian);
-      await storage.saveConfigKey('jadwal_harian', val);
+      jadwalHarian = typeof newConfig.jadwal_harian === 'string' ? JSON.parse(newConfig.jadwal_harian) : newConfig.jadwal_harian;
+    } else {
+      const curCfg = await storage.getConfig();
+      try { jadwalHarian = JSON.parse(curCfg.jadwal_harian || '{}'); } catch {}
     }
+
+    for (let day = 1; day <= 6; day++) {
+      const k = String(day);
+      if (!jadwalHarian[k]) jadwalHarian[k] = { libur: false };
+      if (newConfig.jam_masuk_mulai) jadwalHarian[k].masuk_mulai = newConfig.jam_masuk_mulai;
+      if (newConfig.jam_masuk_akhir) jadwalHarian[k].masuk_akhir = newConfig.jam_masuk_akhir;
+      if (newConfig.jam_pulang_mulai) jadwalHarian[k].pulang_mulai = newConfig.jam_pulang_mulai;
+      if (newConfig.jam_pulang_akhir) jadwalHarian[k].pulang_akhir = newConfig.jam_pulang_akhir;
+    }
+    await storage.saveConfigKey('jadwal_harian', JSON.stringify(jadwalHarian));
+
     return res.json({ success: true, message: 'Konfigurasi waktu berhasil disimpan' });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });
@@ -702,19 +750,17 @@ apiRouter.post('/absensi/status', requireAuth, async (req: AuthRequest, res: Res
 // Single QR Scan
 apiRouter.post('/absensi/scan', async (req: Request, res: Response) => {
   try {
-    const { nisn, scannerRole, scannerKelas, scanMode = 'auto' } = req.body;
+    const { nisn, scannerRole, scannerKelas, scanMode = 'auto', clientTime, clientDate } = req.body;
     const cleanNisn = String(nisn || '').replace(/[^a-zA-Z0-9]/g, '').trim();
 
     if (!cleanNisn) {
       return res.status(400).json({ success: false, message: 'QR Code tidak valid atau kosong.' });
     }
 
-    const today = getTodayStr();
-    const nowTime = getNowTimeStr();
-    const nowSecTime = getNowTimeSecStr();
+    const { dateStr: today, timeStr: nowTime, timeSecStr: nowSecTime } = getWibDateTime(clientTime, clientDate);
 
     const cfg = await storage.getConfig();
-    let jadwalHarian = {};
+    let jadwalHarian: any = {};
     try { jadwalHarian = JSON.parse(cfg.jadwal_harian || '{}'); } catch {}
     const config: Record<string, any> = { ...cfg, jadwal_harian: jadwalHarian };
 
@@ -741,25 +787,41 @@ apiRouter.post('/absensi/scan', async (req: Request, res: Response) => {
       }
     }
 
-    // 4. Existing attendance check
+    // Determine operational hours based on day or general config
+    const d = new Date(today + 'T12:00:00+07:00');
+    let jsDay = d.getDay(); // 0=Sunday, 1=Monday... 6=Saturday
+    const dayKey = jsDay === 0 ? '7' : String(jsDay);
+    const daySchedule = jadwalHarian && jadwalHarian[dayKey] ? jadwalHarian[dayKey] : null;
+
+    const jamMasukMulai = (daySchedule && daySchedule.masuk_mulai) ? daySchedule.masuk_mulai : (config.jam_masuk_mulai || '06:00');
+    const jamMasukAkhir = (daySchedule && daySchedule.masuk_akhir) ? daySchedule.masuk_akhir : (config.jam_masuk_akhir || '07:15');
+    const jamPulangMulai = (daySchedule && daySchedule.pulang_mulai) ? daySchedule.pulang_mulai : (config.jam_pulang_mulai || '15:00');
+
+    // 4. Attendance Handling
     const existing = await storage.getAbsensiToday(today, cleanNisn);
     const modeAbsen = scanMode === 'pulang' ? 'masuk_pulang' : (config.mode_absen || 'masuk_pulang');
 
-    if (existing) {
-      if (modeAbsen === 'masuk_saja') {
-        return res.json({ success: false, message: `${targetSiswa.nama} sudah absen masuk hari ini.` });
-      }
-
-      if (scanMode === 'masuk') {
+    // ==========================================================
+    // KHUSUS MODE ABSEN PULANG
+    // ==========================================================
+    if (scanMode === 'pulang') {
+      if (!existing || existing.status === 'Belum Absen' || !existing.status) {
         return res.json({
           success: false,
-          code: 'ALREADY_MASUK',
-          message: `${targetSiswa.nama} sudah absen datang hari ini.`,
+          code: 'BELUM_MASUK',
+          message: `${targetSiswa.nama} belum melakukan absen datang hari ini, tidak bisa absen pulang.`,
           nama: targetSiswa.nama,
           kelas: targetSiswa.kelas,
-          status: existing.status,
-          jamDatang: existing.jamDatang || '',
-          jamPulang: existing.jamPulang || '',
+        });
+      }
+
+      if (existing.status === 'Sakit' || existing.status === 'Izin' || existing.status === 'Alpa') {
+        return res.json({
+          success: false,
+          code: 'STATUS_BUKAN_HADIR',
+          message: `${targetSiswa.nama} tercatat ${existing.status} hari ini, tidak bisa scan absen pulang.`,
+          nama: targetSiswa.nama,
+          kelas: targetSiswa.kelas,
         });
       }
 
@@ -767,16 +829,16 @@ apiRouter.post('/absensi/scan', async (req: Request, res: Response) => {
         return res.json({
           success: false,
           code: 'ALREADY_PULANG',
-          message: `${targetSiswa.nama} sudah absen pulang hari ini.`,
+          message: `${targetSiswa.nama} sudah absen pulang hari ini (${existing.jamPulang.substring(0, 5)} WIB).`,
           nama: targetSiswa.nama,
           jamPulang: existing.jamPulang,
         });
       }
 
-      // Record Pulang
+      // Siswa berstatus Hadir (baik via scan QR maupun manual guru) -> catat pulang
       let ketBaru = existing.keterangan || '';
-      let pesanPulang = 'Absen Pulang Berhasil';
-      if (nowTime < (config.jam_pulang_mulai || '15:00')) {
+      let pesanPulang = 'Absen Pulang Berhasil ✓';
+      if (nowTime < jamPulangMulai) {
         ketBaru = (ketBaru ? ketBaru + ' & ' : '') + 'Pulang Cepat';
         pesanPulang = 'Absen Pulang (Pulang Cepat)';
       }
@@ -794,23 +856,79 @@ apiRouter.post('/absensi/scan', async (req: Request, res: Response) => {
       });
     }
 
-    if (scanMode === 'pulang') {
+    // ==========================================================
+    // MODE MASUK ATAU AUTO (DATANG / PULANG)
+    // ==========================================================
+    if (existing) {
+      if (modeAbsen === 'masuk_saja') {
+        return res.json({ success: false, message: `${targetSiswa.nama} sudah absen masuk hari ini.` });
+      }
+
+      if (scanMode === 'masuk') {
+        return res.json({
+          success: false,
+          code: 'ALREADY_MASUK',
+          message: `${targetSiswa.nama} sudah absen datang hari ini (${existing.jamDatang ? existing.jamDatang.substring(0, 5) + ' WIB' : 'Hadir'}).`,
+          nama: targetSiswa.nama,
+          kelas: targetSiswa.kelas,
+          status: existing.status,
+          jamDatang: existing.jamDatang || '',
+          jamPulang: existing.jamPulang || '',
+        });
+      }
+
+      // Mode auto: Jika siswa berstatus Sakit/Izin/Alpa tidak bisa pulang
+      if (existing.status === 'Sakit' || existing.status === 'Izin' || existing.status === 'Alpa') {
+        return res.json({
+          success: false,
+          code: 'STATUS_BUKAN_HADIR',
+          message: `${targetSiswa.nama} tercatat ${existing.status} hari ini, tidak bisa scan absen pulang.`,
+          nama: targetSiswa.nama,
+          kelas: targetSiswa.kelas,
+        });
+      }
+
+      if (existing.jamPulang) {
+        return res.json({
+          success: false,
+          code: 'ALREADY_PULANG',
+          message: `${targetSiswa.nama} sudah absen pulang hari ini (${existing.jamPulang.substring(0, 5)} WIB).`,
+          nama: targetSiswa.nama,
+          jamPulang: existing.jamPulang,
+        });
+      }
+
+      // Record Pulang
+      let ketBaru = existing.keterangan || '';
+      let pesanPulang = 'Absen Pulang Berhasil ✓';
+      if (nowTime < jamPulangMulai) {
+        ketBaru = (ketBaru ? ketBaru + ' & ' : '') + 'Pulang Cepat';
+        pesanPulang = 'Absen Pulang (Pulang Cepat)';
+      }
+
+      await storage.recordAbsensiPulang(existing.id, nowSecTime, ketBaru);
+
       return res.json({
-        success: false,
-        code: 'BELUM_MASUK',
-        message: `${targetSiswa.nama} belum melakukan absen datang hari ini.`,
+        success: true,
+        message: pesanPulang,
+        type: 'pulang',
+        jamPulang: nowSecTime,
         nama: targetSiswa.nama,
         kelas: targetSiswa.kelas,
+        status: 'Hadir',
       });
     }
 
     // New Check-in (Masuk)
-    if (nowTime < (config.jam_masuk_mulai || '06:00')) {
-      return res.json({ success: false, message: `Absensi belum dibuka. Buka mulai jam ${config.jam_masuk_mulai}.` });
+    if (nowTime < jamMasukMulai) {
+      return res.json({
+        success: false,
+        message: `Absensi belum dibuka. Buka mulai jam ${jamMasukMulai} WIB (Waktu sekarang: ${nowTime} WIB).`,
+      });
     }
 
     let keteranganWaktu = 'Tepat Waktu';
-    const batasAkhir = config.jam_masuk_akhir || '07:15';
+    const batasAkhir = jamMasukAkhir;
     if (nowTime > batasAkhir) {
       const lateMinutes = calculateTimeDiffMinutes(batasAkhir, nowTime);
       keteranganWaktu = `Terlambat ${lateMinutes} menit`;
@@ -1290,3 +1408,139 @@ apiRouter.post('/arsip/reset', requireAuth, async (req: Request, res: Response) 
     return res.status(500).json({ success: false, message: error.message });
   }
 });
+
+// ----------------------------------------------------------------------
+// 11. PENGAJUAN IZIN & SAKIT (SISWA & ADMIN REVIEW)
+// ----------------------------------------------------------------------
+apiRouter.get('/pengajuan-izin', async (req: Request, res: Response) => {
+  try {
+    const { nisn, status, kelas } = req.query as { nisn?: string; status?: string; kelas?: string };
+    const list = await storage.getAllPengajuan({ nisn, status, kelas });
+    return res.json({ success: true, data: list });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+apiRouter.post('/pengajuan-izin', async (req: Request, res: Response) => {
+  try {
+    const { nisn, nama, kelas, jenis, tanggalMulai, tanggalSelesai, keterangan, dokumenUrl } = req.body;
+
+    if (!nisn || !nama || !jenis || !tanggalMulai || !tanggalSelesai) {
+      return res.status(400).json({ success: false, message: 'Data pengajuan tidak lengkap.' });
+    }
+
+    if (tanggalSelesai < tanggalMulai) {
+      return res.status(400).json({ success: false, message: 'Tanggal selesai tidak boleh sebelum tanggal mulai.' });
+    }
+
+    const created = await storage.createPengajuan({
+      nisn: String(nisn).trim(),
+      nama: String(nama).trim(),
+      kelas: String(kelas || '').trim(),
+      jenis: jenis === 'Sakit' ? 'Sakit' : 'Izin',
+      tanggalMulai: String(tanggalMulai).trim(),
+      tanggalSelesai: String(tanggalSelesai).trim(),
+      keterangan: String(keterangan || '').trim(),
+      dokumenUrl: dokumenUrl ? String(dokumenUrl).trim() : '',
+    });
+
+    return res.json({
+      success: true,
+      message: 'Pengajuan izin/sakit berhasil dikirim dan menunggu persetujuan Admin/Guru.',
+      data: created,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+apiRouter.post('/pengajuan-izin/:id/review', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { status, catatanAdmin } = req.body;
+
+    if (!['Disetujui', 'Ditolak'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Status review harus "Disetujui" atau "Ditolak".' });
+    }
+
+    const reviewerName = req.user?.nama || req.user?.identifier || 'Admin/Guru';
+    const updated = await storage.reviewPengajuan(id, status, catatanAdmin || '', reviewerName);
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Data pengajuan tidak ditemukan.' });
+    }
+
+    return res.json({
+      success: true,
+      message: `Pengajuan berhasil ${status.toLowerCase()} dan status absensi siswa telah diperbarui.`,
+      data: updated,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ----------------------------------------------------------------------
+// 12. LAPORAN KEHADIRAN SISWA BULANAN (UNTUK DASHBOARD SISWA)
+// ----------------------------------------------------------------------
+apiRouter.get('/absensi/siswa-bulanan/:nisn', async (req: Request, res: Response) => {
+  try {
+    const nisn = req.params.nisn;
+    const cleanNisn = String(nisn || '').replace(/[^a-zA-Z0-9]/g, '').trim();
+    if (!cleanNisn) {
+      return res.status(400).json({ success: false, message: 'NISN tidak valid.' });
+    }
+
+    const bulanQuery = req.query.bulan as string; // format YYYY-MM
+    const currentYM = getTodayStr().substring(0, 7);
+    const targetYM = bulanQuery || currentYM;
+
+    const rows = await storage.getAbsensiMonthByNisn(cleanNisn, targetYM);
+
+    let totalHadir = 0;
+    let totalSakit = 0;
+    let totalIzin = 0;
+    let totalAlpa = 0;
+    let totalTerlambat = 0;
+
+    rows.forEach((r) => {
+      const st = r.status || 'Hadir';
+      if (st === 'Hadir') {
+        totalHadir++;
+        if (r.keterangan && r.keterangan.toLowerCase().includes('terlambat')) {
+          totalTerlambat++;
+        }
+      } else if (st === 'Sakit') {
+        totalSakit++;
+      } else if (st === 'Izin') {
+        totalIzin++;
+      } else if (st === 'Alpa') {
+        totalAlpa++;
+      }
+    });
+
+    const totalTercatat = totalHadir + totalSakit + totalIzin + totalAlpa;
+    // Persentase Kehadiran: (Hadir / total tercatat) * 100
+    const persentaseHadir = totalTercatat > 0 ? Math.round((totalHadir / totalTercatat) * 100) : 100;
+
+    return res.json({
+      success: true,
+      data: {
+        nisn: cleanNisn,
+        bulan: targetYM,
+        totalHadir,
+        totalSakit,
+        totalIzin,
+        totalAlpa,
+        totalTerlambat,
+        totalTercatat,
+        persentaseHadir,
+        records: rows,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
