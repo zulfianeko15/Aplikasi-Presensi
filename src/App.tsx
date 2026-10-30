@@ -1503,8 +1503,6 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
 
   useEffect(() => {
     fetchStudents();
-    const interval = setInterval(fetchStudents, 5000);
-    return () => clearInterval(interval);
   }, [selectedKelas, mode, todayDate]);
 
   // Audio Beep

@@ -63,10 +63,17 @@ export default function ScannerLiveKioskView({
   const animFrameRef = useRef<number | null>(null);
   const isScanningRef = useRef(false);
   const modeRef = useRef<'masuk' | 'pulang'>(mode);
+  const scanResultTimerRef = useRef<any>(null);
 
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    return () => {
+      if (scanResultTimerRef.current) clearTimeout(scanResultTimerRef.current);
+    };
+  }, []);
 
   // Real-time clock updater
   useEffect(() => {
@@ -235,10 +242,13 @@ export default function ScannerLiveKioskView({
         success: false,
       });
     } finally {
-      // Clear announcement popup after 6 seconds
-      setTimeout(() => {
-        setLastScanResult((current) => (current?.nama ? current : null));
-      }, 6000);
+      // Clear announcement banner after 4 seconds (rentang 3-5 detik)
+      if (scanResultTimerRef.current) {
+        clearTimeout(scanResultTimerRef.current);
+      }
+      scanResultTimerRef.current = setTimeout(() => {
+        setLastScanResult(null);
+      }, 4000);
     }
   };
 
