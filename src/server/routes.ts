@@ -81,8 +81,8 @@ async function checkHolidayStatus(dateStr: string, config: any) {
 
   if (config.jadwal_harian && config.jadwal_harian[dayKey]?.libur) {
     return { isHoliday: true, message: `Absensi DITUTUP. Hari ini libur rutin: Hari ${dayNames[dayKey] || ''}` };
-  } else if (dayKey === '7') {
-    return { isHoliday: true, message: 'Absensi DITUTUP. Hari ini libur rutin: Hari Minggu' };
+  } else if (!config.jadwal_harian && (dayKey === '6' || dayKey === '7')) {
+    return { isHoliday: true, message: `Absensi DITUTUP. Hari ini libur rutin: Hari ${dayNames[dayKey] || ''}` };
   }
 
   const holidays = await storage.getAllHariLibur();
@@ -634,26 +634,29 @@ apiRouter.post('/config', requireAuth, async (req: Request, res: Response) => {
     if (newConfig.jam_pulang_akhir) await storage.saveConfigKey('jam_pulang_akhir', newConfig.jam_pulang_akhir);
     if (newConfig.mode_absen) await storage.saveConfigKey('mode_absen', newConfig.mode_absen);
 
-    // Sync into jadwal_harian so daily schedules match current setting
-    let jadwalHarian: any = {};
     if (newConfig.jadwal_harian) {
-      jadwalHarian = typeof newConfig.jadwal_harian === 'string' ? JSON.parse(newConfig.jadwal_harian) : newConfig.jadwal_harian;
+      const parsed = typeof newConfig.jadwal_harian === 'string'
+        ? JSON.parse(newConfig.jadwal_harian)
+        : newConfig.jadwal_harian;
+      await storage.saveConfigKey('jadwal_harian', JSON.stringify(parsed));
     } else {
       const curCfg = await storage.getConfig();
+      let jadwalHarian: any = {};
       try { jadwalHarian = JSON.parse(curCfg.jadwal_harian || '{}'); } catch {}
+      for (let day = 1; day <= 7; day++) {
+        const k = String(day);
+        if (!jadwalHarian[k]) jadwalHarian[k] = { libur: day >= 6 };
+        if (!jadwalHarian[k].libur) {
+          if (newConfig.jam_masuk_mulai) jadwalHarian[k].masuk_mulai = newConfig.jam_masuk_mulai;
+          if (newConfig.jam_masuk_akhir) jadwalHarian[k].masuk_akhir = newConfig.jam_masuk_akhir;
+          if (newConfig.jam_pulang_mulai) jadwalHarian[k].pulang_mulai = newConfig.jam_pulang_mulai;
+          if (newConfig.jam_pulang_akhir) jadwalHarian[k].pulang_akhir = newConfig.jam_pulang_akhir;
+        }
+      }
+      await storage.saveConfigKey('jadwal_harian', JSON.stringify(jadwalHarian));
     }
 
-    for (let day = 1; day <= 6; day++) {
-      const k = String(day);
-      if (!jadwalHarian[k]) jadwalHarian[k] = { libur: false };
-      if (newConfig.jam_masuk_mulai) jadwalHarian[k].masuk_mulai = newConfig.jam_masuk_mulai;
-      if (newConfig.jam_masuk_akhir) jadwalHarian[k].masuk_akhir = newConfig.jam_masuk_akhir;
-      if (newConfig.jam_pulang_mulai) jadwalHarian[k].pulang_mulai = newConfig.jam_pulang_mulai;
-      if (newConfig.jam_pulang_akhir) jadwalHarian[k].pulang_akhir = newConfig.jam_pulang_akhir;
-    }
-    await storage.saveConfigKey('jadwal_harian', JSON.stringify(jadwalHarian));
-
-    return res.json({ success: true, message: 'Konfigurasi waktu berhasil disimpan' });
+    return res.json({ success: true, message: 'Konfigurasi jadwal operasional berhasil disimpan' });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });
   }

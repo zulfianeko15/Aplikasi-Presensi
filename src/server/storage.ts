@@ -143,7 +143,7 @@ let memoryConfig: Record<string, string> = {
     "3": { libur: false, masuk_mulai: "06:00", masuk_akhir: "07:15", pulang_mulai: "15:00", pulang_akhir: "17:00" },
     "4": { libur: false, masuk_mulai: "06:00", masuk_akhir: "07:15", pulang_mulai: "15:00", pulang_akhir: "17:00" },
     "5": { libur: false, masuk_mulai: "06:00", masuk_akhir: "07:15", pulang_mulai: "15:00", pulang_akhir: "17:00" },
-    "6": { libur: false, masuk_mulai: "06:00", masuk_akhir: "07:15", pulang_mulai: "15:00", pulang_akhir: "17:00" },
+    "6": { libur: true,  masuk_mulai: "06:00", masuk_akhir: "07:15", pulang_mulai: "15:00", pulang_akhir: "17:00" },
     "7": { libur: true,  masuk_mulai: "06:00", masuk_akhir: "07:15", pulang_mulai: "15:00", pulang_akhir: "17:00" }
   }),
 };

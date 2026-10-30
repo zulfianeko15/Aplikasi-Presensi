@@ -45,7 +45,12 @@ import {
   TrendingUp,
   Lock,
   KeyRound,
-  ShieldAlert
+  ShieldAlert,
+  Check,
+  SlidersHorizontal,
+  ToggleLeft,
+  ToggleRight,
+  Power
 } from 'lucide-react';
 import PanduanDeployModal from './components/PanduanDeployModal.tsx';
 import ScannerLiveKioskView from './components/ScannerLiveKioskView.tsx';
@@ -3432,25 +3437,160 @@ function JadwalLiburView({ showToast }: any) {
   const [holidays, setHolidays] = useState<any[]>([]);
   const [tglLibur, setTglLibur] = useState('');
   const [ketLibur, setKetLibur] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  // Daily schedule state for days 1 to 7 (1=Senin ... 7=Minggu)
+  const defaultSchedule: Record<string, { libur: boolean; masuk_mulai: string; masuk_akhir: string; pulang_mulai: string; pulang_akhir: string }> = {
+    '1': { libur: false, masuk_mulai: '06:00', masuk_akhir: '07:15', pulang_mulai: '15:00', pulang_akhir: '17:00' },
+    '2': { libur: false, masuk_mulai: '06:00', masuk_akhir: '07:15', pulang_mulai: '15:00', pulang_akhir: '17:00' },
+    '3': { libur: false, masuk_mulai: '06:00', masuk_akhir: '07:15', pulang_mulai: '15:00', pulang_akhir: '17:00' },
+    '4': { libur: false, masuk_mulai: '06:00', masuk_akhir: '07:15', pulang_mulai: '15:00', pulang_akhir: '17:00' },
+    '5': { libur: false, masuk_mulai: '06:00', masuk_akhir: '07:15', pulang_mulai: '15:00', pulang_akhir: '17:00' },
+    '6': { libur: true,  masuk_mulai: '06:00', masuk_akhir: '07:15', pulang_mulai: '15:00', pulang_akhir: '17:00' },
+    '7': { libur: true,  masuk_mulai: '06:00', masuk_akhir: '07:15', pulang_mulai: '15:00', pulang_akhir: '17:00' }
+  };
+
+  const [jadwalHarian, setJadwalHarian] = useState<Record<string, any>>(defaultSchedule);
+
+  const dayMeta: Record<string, { name: string; desc: string }> = {
+    '1': { name: 'Senin', desc: 'Awal pekan sekolah & upacara bendera' },
+    '2': { name: 'Selasa', desc: 'Kegiatan belajar mengajar' },
+    '3': { name: 'Rabu', desc: 'Kegiatan belajar mengajar' },
+    '4': { name: 'Kamis', desc: 'Kegiatan belajar mengajar' },
+    '5': { name: 'Jumat', desc: 'Kegiatan belajar & sholat Jumat berjamaah' },
+    '6': { name: 'Sabtu', desc: 'Akhir pekan / ekstrakurikuler' },
+    '7': { name: 'Minggu', desc: 'Hari libur akhir pekan' }
+  };
 
   const loadData = async () => {
-    const cRes = await api.getConfig();
-    const hRes = await api.getHariLibur();
-    if (cRes.success) setConfig(cRes.data);
-    if (hRes.success) setHolidays(hRes.data);
+    try {
+      const cRes = await api.getConfig();
+      const hRes = await api.getHariLibur();
+      if (cRes.success && cRes.data) {
+        setConfig(cRes.data);
+        if (cRes.data.jadwal_harian) {
+          const raw = typeof cRes.data.jadwal_harian === 'string'
+            ? JSON.parse(cRes.data.jadwal_harian)
+            : cRes.data.jadwal_harian;
+          setJadwalHarian((prev) => ({ ...prev, ...raw }));
+        }
+      }
+      if (hRes.success && Array.isArray(hRes.data)) {
+        setHolidays(hRes.data);
+      }
+    } catch (err: any) {
+      console.warn('Gagal memuat jadwal & config:', err);
+    }
   };
 
   useEffect(() => {
     loadData();
   }, []);
 
+  // Preset: Senin s.d. Jumat Aktif, Sabtu & Minggu Libur
+  const applyPresetSeninJumat = () => {
+    setJadwalHarian((prev) => {
+      const updated = { ...prev };
+      for (let d = 1; d <= 5; d++) {
+        const k = String(d);
+        updated[k] = { ...(updated[k] || defaultSchedule[k]), libur: false };
+      }
+      updated['6'] = { ...(updated['6'] || defaultSchedule['6']), libur: true };
+      updated['7'] = { ...(updated['7'] || defaultSchedule['7']), libur: true };
+      return updated;
+    });
+    showToast('Preset diterapkan: Operasional aktif Senin s.d. Jumat (Sabtu & Minggu Libur)', 'info');
+  };
+
+  // Preset: Senin s.d. Sabtu Aktif, Minggu Libur
+  const applyPresetSeninSabtu = () => {
+    setJadwalHarian((prev) => {
+      const updated = { ...prev };
+      for (let d = 1; d <= 6; d++) {
+        const k = String(d);
+        updated[k] = { ...(updated[k] || defaultSchedule[k]), libur: false };
+      }
+      updated['7'] = { ...(updated['7'] || defaultSchedule['7']), libur: true };
+      return updated;
+    });
+    showToast('Preset diterapkan: Operasional aktif Senin s.d. Sabtu (Minggu Libur)', 'info');
+  };
+
+  // Copy jam masuk & pulang dari Senin ke semua hari aktif
+  const copyTimesToAllActive = () => {
+    const senin = jadwalHarian['1'] || defaultSchedule['1'];
+    setJadwalHarian((prev) => {
+      const updated = { ...prev };
+      for (let d = 1; d <= 7; d++) {
+        const k = String(d);
+        if (updated[k] && !updated[k].libur) {
+          updated[k] = {
+            ...updated[k],
+            masuk_mulai: senin.masuk_mulai,
+            masuk_akhir: senin.masuk_akhir,
+            pulang_mulai: senin.pulang_mulai,
+            pulang_akhir: senin.pulang_akhir,
+          };
+        }
+      }
+      return updated;
+    });
+    showToast('Jam operasional hari Senin berhasil disalin ke seluruh hari aktif!', 'success');
+  };
+
+  // Toggle Aktif / Nonaktif per hari
+  const toggleDayStatus = (dayKey: string) => {
+    setJadwalHarian((prev) => {
+      const current = prev[dayKey] || defaultSchedule[dayKey];
+      const nextLibur = !current.libur;
+      return {
+        ...prev,
+        [dayKey]: {
+          ...current,
+          libur: nextLibur,
+        },
+      };
+    });
+  };
+
+  // Update specific time field for a day
+  const updateDayTime = (dayKey: string, field: 'masuk_mulai' | 'masuk_akhir' | 'pulang_mulai' | 'pulang_akhir', val: string) => {
+    setJadwalHarian((prev) => ({
+      ...prev,
+      [dayKey]: {
+        ...(prev[dayKey] || defaultSchedule[dayKey]),
+        [field]: val,
+      },
+    }));
+  };
+
+  // Save all schedules to backend
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSavingConfig(true);
     try {
-      await api.saveConfig(config);
-      showToast('Konfigurasi jam operasional berhasil disimpan!');
+      // Find standard times from active days or Monday
+      const senin = jadwalHarian['1'] || defaultSchedule['1'];
+      const payload = {
+        ...(config || {}),
+        jam_masuk_mulai: senin.masuk_mulai || config?.jam_masuk_mulai || '06:00',
+        jam_masuk_akhir: senin.masuk_akhir || config?.jam_masuk_akhir || '07:15',
+        jam_pulang_mulai: senin.pulang_mulai || config?.jam_pulang_mulai || '15:00',
+        jam_pulang_akhir: senin.pulang_akhir || config?.jam_pulang_akhir || '17:00',
+        jadwal_harian: jadwalHarian,
+      };
+
+      const res = await api.saveConfig(payload);
+      if (res.success) {
+        showToast('✓ Pengaturan jadwal jam operasional harian berhasil disimpan!', 'success');
+        loadData();
+      } else {
+        showToast(res.message || 'Gagal menyimpan konfigurasi.', 'error');
+      }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Terjadi kesalahan sistem.', 'error');
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -3459,7 +3599,7 @@ function JadwalLiburView({ showToast }: any) {
     if (!tglLibur || !ketLibur) return;
     try {
       await api.addHariLibur(tglLibur, ketLibur);
-      showToast('Hari libur berhasil ditambahkan!');
+      showToast('✓ Hari libur khusus berhasil ditambahkan!', 'success');
       setTglLibur('');
       setKetLibur('');
       loadData();
@@ -3469,119 +3609,348 @@ function JadwalLiburView({ showToast }: any) {
   };
 
   const handleDeleteHoliday = async (tgl: string) => {
-    if (!window.confirm(`Hapus libur ${tgl}?`)) return;
+    if (!window.confirm(`Hapus hari libur ${tgl}?`)) return;
     try {
       await api.deleteHariLibur(tgl);
-      showToast('Hari libur dihapus.');
+      showToast('Hari libur berhasil dihapus.', 'info');
       loadData();
     } catch (err: any) {
       showToast(err.message, 'error');
     }
   };
 
+  // Current day in WIB to highlight
+  const currentJsDay = new Date().getDay();
+  const currentDayKey = currentJsDay === 0 ? '7' : String(currentJsDay);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Config Panel */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <h4 className="font-bold text-sm text-slate-800 mb-3 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-indigo-600" /> Jam Operasional Absensi
-        </h4>
-        {config && (
-          <form onSubmit={handleSaveConfig} className="space-y-4 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold text-slate-600 block mb-1">Jam Datang Buka</label>
-                <input
-                  type="time"
-                  value={config.jam_masuk_mulai}
-                  onChange={(e) => setConfig({ ...config, jam_masuk_mulai: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-slate-600 block mb-1">Batas Tepat Waktu</label>
-                <input
-                  type="time"
-                  value={config.jam_masuk_akhir}
-                  onChange={(e) => setConfig({ ...config, jam_masuk_akhir: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
-                />
-              </div>
-            </div>
+    <div className="space-y-6">
+      {/* Top Banner */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span className="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white mb-2">
+            Pengaturan Operasional
+          </span>
+          <h2 className="text-xl md:text-2xl font-black flex items-center gap-2">
+            <SlidersHorizontal className="w-6 h-6 text-indigo-300" />
+            <span>Jadwal Jam Operasional & Hari Aktif Sekolah</span>
+          </h2>
+          <p className="text-xs text-indigo-100 mt-1 max-w-2xl">
+            Atur hari dan jam kerja presensi sekolah. Anda dapat mengaktifkan atau menonaktifkan operasional per hari (Senin s.d. Minggu) dengan tombol switch Aktif/Nonaktif, serta menyesuaikan jam datang dan jam pulang.
+          </p>
+        </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold text-slate-600 block mb-1">Jam Pulang Buka</label>
-                <input
-                  type="time"
-                  value={config.jam_pulang_mulai}
-                  onChange={(e) => setConfig({ ...config, jam_pulang_mulai: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-slate-600 block mb-1">Jam Pulang Batas</label>
-                <input
-                  type="time"
-                  value={config.jam_pulang_akhir}
-                  onChange={(e) => setConfig({ ...config, jam_pulang_akhir: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl"
-            >
-              Simpan Jam Operasional
-            </button>
-          </form>
-        )}
+        {/* Quick Presets */}
+        <div className="flex flex-wrap gap-2 items-center bg-black/25 p-2 rounded-2xl border border-white/10 shrink-0">
+          <button
+            type="button"
+            onClick={applyPresetSeninJumat}
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            title="Aktifkan Senin s.d. Jumat saja (Sabtu & Minggu Libur)"
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>Senin - Jumat Saja (5 Hari)</span>
+          </button>
+          <button
+            type="button"
+            onClick={applyPresetSeninSabtu}
+            className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+            title="Aktifkan Senin s.d. Sabtu (Minggu Libur)"
+          >
+            <span>Senin - Sabtu (6 Hari)</span>
+          </button>
+          <button
+            type="button"
+            onClick={copyTimesToAllActive}
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            title="Samakan jam seluruh hari aktif sesuai jam hari Senin"
+          >
+            <span>Samakan Jam Operasional</span>
+          </button>
+        </div>
       </div>
 
-      {/* Holiday Panel */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <h4 className="font-bold text-sm text-slate-800 mb-3 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-rose-600" /> Daftar Hari Libur
-        </h4>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Main Schedule Panel: Day-by-Day Settings (2 Cols on XL) */}
+        <div className="xl:col-span-2 space-y-4">
+          <form onSubmit={handleSaveConfig} className="space-y-4">
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-indigo-600" />
+                    <span>Jadwal Harian (Senin s.d. Minggu)</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Gunakan tombol switch untuk menentukan hari aktif sekolah atau hari libur rutin.
+                  </p>
+                </div>
 
-        <form onSubmit={handleAddHoliday} className="flex gap-2 mb-4">
-          <input
-            type="date"
-            required
-            value={tglLibur}
-            onChange={(e) => setTglLibur(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-          />
-          <input
-            type="text"
-            required
-            placeholder="Keterangan libur..."
-            value={ketLibur}
-            onChange={(e) => setKetLibur(e.target.value)}
-            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-          />
-          <button type="submit" className="px-4 py-2 bg-rose-600 text-white font-bold rounded-xl text-xs">
-            Tambah
-          </button>
-        </form>
-
-        <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
-          {holidays.map(h => (
-            <div key={h.tanggal} className="py-2.5 flex justify-between items-center text-xs">
-              <div>
-                <p className="font-bold text-slate-800">{h.keterangan}</p>
-                <p className="text-[10px] text-slate-400 font-mono">{h.tanggal}</p>
+                <button
+                  type="submit"
+                  disabled={savingConfig}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-200 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  {savingConfig ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>SIMPAN SEMUA PERUBAHAN</span>
+                    </>
+                  )}
+                </button>
               </div>
-              <button
-                onClick={() => handleDeleteHoliday(h.tanggal)}
-                className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+
+              {/* 7 Days Cards */}
+              <div className="space-y-3">
+                {['1', '2', '3', '4', '5', '6', '7'].map((dayKey) => {
+                  const item = jadwalHarian[dayKey] || defaultSchedule[dayKey];
+                  const meta = dayMeta[dayKey];
+                  const isLibur = Boolean(item.libur);
+                  const isToday = currentDayKey === dayKey;
+
+                  return (
+                    <div
+                      key={dayKey}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        isToday ? 'ring-2 ring-indigo-500/20' : ''
+                      } ${
+                        isLibur
+                          ? 'bg-slate-50/70 border-slate-200 opacity-90'
+                          : 'bg-white border-emerald-200 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${
+                            isLibur
+                              ? 'bg-rose-100 text-rose-700'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {meta.name.substring(0, 3)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-black text-sm text-slate-900">{meta.name}</h4>
+                              {isToday && (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-100 text-indigo-700 animate-pulse">
+                                  Hari Ini
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400">{meta.desc}</p>
+                          </div>
+                        </div>
+
+                        {/* Interactive Toggle Button: Aktif / Nonaktif */}
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => toggleDayStatus(dayKey)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
+                              isLibur
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                            <span>{isLibur ? '🔴 NONAKTIF (LIBUR)' : '🟢 AKTIF (SEKOLAH)'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Time Pickers (visible if active, muted notice if inactive) */}
+                      {!isLibur ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 text-xs">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Jam Datang Buka
+                            </label>
+                            <input
+                              type="time"
+                              required
+                              value={item.masuk_mulai || '06:00'}
+                              onChange={(e) => updateDayTime(dayKey, 'masuk_mulai', e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            />
+                            <span className="text-[9px] text-slate-400 block mt-0.5">Mulai scan masuk</span>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Batas Tepat Waktu
+                            </label>
+                            <input
+                              type="time"
+                              required
+                              value={item.masuk_akhir || '07:15'}
+                              onChange={(e) => updateDayTime(dayKey, 'masuk_akhir', e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            />
+                            <span className="text-[9px] text-amber-600 font-semibold block mt-0.5">Lewat = Terlambat</span>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Jam Pulang Buka
+                            </label>
+                            <input
+                              type="time"
+                              required
+                              value={item.pulang_mulai || '15:00'}
+                              onChange={(e) => updateDayTime(dayKey, 'pulang_mulai', e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            />
+                            <span className="text-[9px] text-slate-400 block mt-0.5">Mulai absen pulang</span>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Jam Pulang Batas
+                            </label>
+                            <input
+                              type="time"
+                              required
+                              value={item.pulang_akhir || '17:00'}
+                              onChange={(e) => updateDayTime(dayKey, 'pulang_akhir', e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            />
+                            <span className="text-[9px] text-slate-400 block mt-0.5">Tutup absen pulang</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pt-3 flex items-center justify-between text-xs text-slate-400 bg-slate-100/60 p-2.5 rounded-xl mt-2 border border-slate-200/60">
+                          <span className="font-semibold text-rose-600">
+                            Hari Libur Rutin: Absensi gerbang sekolah ditutup otomatis pada hari {meta.name}.
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">Status: Libur Rutin</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Submit Action */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <p className="text-[11px] text-slate-400">
+                  Perubahan jadwal harian langsung berpengaruh pada scanner kiosk gerbang & status keterlambatan siswa.
+                </p>
+                <button
+                  type="submit"
+                  disabled={savingConfig}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-2xl text-xs shadow-lg shadow-emerald-200 transition flex items-center gap-2 cursor-pointer"
+                >
+                  {savingConfig ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  <span>SIMPAN JADWAL OPERASIONAL</span>
+                </button>
+              </div>
             </div>
-          ))}
+          </form>
+        </div>
+
+        {/* Right Panel: Hari Libur Nasional & Khusus */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-rose-600" />
+                  <span>Daftar Hari Libur Khusus / Nasional</span>
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Kalender cuti bersama atau hari libur tanggal merah
+                </p>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700">
+                {holidays.length} Hari Libur
+              </span>
+            </div>
+
+            {/* Form Tambah Hari Libur */}
+            <form onSubmit={handleAddHoliday} className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                Tambah Tanggal Libur
+              </span>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                  Tanggal Libur
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={tglLibur}
+                  onChange={(e) => setTglLibur(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                  Keterangan Libur
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Libur Idul Fitri / Hari Guru"
+                  value={ketLibur}
+                  onChange={(e) => setKetLibur(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-rose-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambahkan Hari Libur</span>
+              </button>
+            </form>
+
+            {/* List of Holidays */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                Hari Libur Terdaftar
+              </span>
+
+              {holidays.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-2xl">
+                  Belum ada tanggal libur khusus yang ditambahkan.
+                </div>
+              ) : (
+                <div className="max-h-[420px] overflow-y-auto space-y-2 pr-1">
+                  {holidays.map((h) => (
+                    <div
+                      key={h.tanggal}
+                      className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs transition"
+                    >
+                      <div>
+                        <p className="font-bold text-slate-800">{h.keterangan}</p>
+                        <p className="text-[11px] text-rose-600 font-mono mt-0.5">{h.tanggal}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteHoliday(h.tanggal)}
+                        className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                        title="Hapus hari libur"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
