@@ -370,9 +370,9 @@ APP_URL=https://absensi.smpn4jambi.sch.id`,
         </div>
 
         {/* Live Database Status Bar */}
-        <div className="bg-slate-100 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-500">Status Database Saat Ini:</span>
+        <div className="bg-slate-100 border-b border-slate-200 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-slate-500">Status Database:</span>
             {dbStatus ? (
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
                 dbStatus.connected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
@@ -383,15 +383,20 @@ APP_URL=https://absensi.smpn4jambi.sch.id`,
             ) : (
               <span className="text-slate-400">Memeriksa status...</span>
             )}
+            {dbStatus && !dbStatus.connected && dbStatus.lastError && (
+              <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-mono">
+                {dbStatus.lastError}
+              </span>
+            )}
           </div>
 
           <button
             onClick={checkDatabaseConnection}
             disabled={checkingDb}
-            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition"
+            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition self-end sm:self-auto"
           >
             <RefreshCw className={`w-3 h-3 ${checkingDb ? 'animate-spin' : ''}`} />
-            <span>Tes Koneksi</span>
+            <span>Tes Ulang Koneksi</span>
           </button>
         </div>
 
@@ -602,6 +607,10 @@ DATABASE_URL="postgresql://postgres.xxx:PasswordAnda123!@aws-0-ap-southeast-1.po
                       <div><span className="text-indigo-400">Value:</span> <code className="text-emerald-300">postgresql://postgres.xxx:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres</code></div>
                       <div className="pt-2"><span className="text-indigo-400">Key:</span> <code>NODE_ENV</code></div>
                       <div><span className="text-indigo-400">Value:</span> <code>production</code></div>
+                    </div>
+                    <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 leading-relaxed space-y-1">
+                      <p><strong>🔑 Tips Password dengan simbol @:</strong> Jika password database Anda memiliki karakter <code>@</code> (misal: <code>Afif@2707199</code>), tuliskan sebagai <code>Afif%402707199</code> pada URI koneksi agar terbaca dengan sempurna.</p>
+                      <p><strong>🔄 Wajib Redeploy:</strong> Di Vercel, setelah mengubah atau menyimpan Environment Variable di Settings, Anda <strong>wajib klik Redeploy</strong> pada tab Deployments agar nilai baru tersebut mulai dipakai!</p>
                     </div>
                   </div>
                 </div>

@@ -133,9 +133,36 @@ let memoryConfig: Record<string, string> = {
 // PostgreSQL Connection state
 let pgPool: Pool | null = null;
 let isPgActive = false;
+let pgLastError: string | null = null;
+
+export function cleanConnectionString(raw?: string): string {
+  if (!raw) return '';
+  let str = raw.trim().replace(/^["']|["']$/g, '').replace(/[\r\n\t ]+/g, '');
+  // Encode unencoded @ in password: postgresql://user:pass@word@host:port/db -> postgresql://user:pass%40word@host:port/db
+  const match = str.match(/^(postgresql:\/\/[^:]+:)(.*)(@[^@]+:[0-9]+\/.*)$/);
+  if (match) {
+    const userPart = match[1];
+    const passwordPart = match[2];
+    const hostPart = match[3];
+    const safePass = passwordPart.replace(/@/g, '%40');
+    str = `${userPart}${safePass}${hostPart}`;
+  }
+  return str;
+}
+
+export async function ensureConnection(): Promise<boolean> {
+  if (isPgActive && pgPool) return true;
+  const rawConn = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+  if (rawConn || process.env.SQL_HOST) {
+    await initStorage();
+    return isPgActive;
+  }
+  return false;
+}
 
 export async function initStorage() {
-  const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+  const rawConn = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+  const connectionString = cleanConnectionString(rawConn);
   const host = process.env.SQL_HOST;
   const user = process.env.SQL_USER || process.env.SQL_ADMIN_USER;
   const password = process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD;
@@ -154,8 +181,9 @@ export async function initStorage() {
         pgPool = new Pool({
           connectionString,
           ssl,
-          connectionTimeoutMillis: 10000,
-          max: 10,
+          connectionTimeoutMillis: 8000,
+          idleTimeoutMillis: 5000,
+          max: 5,
         });
       } else {
         pgPool = new Pool({
@@ -165,8 +193,9 @@ export async function initStorage() {
           database,
           port: process.env.SQL_PORT ? parseInt(process.env.SQL_PORT) : 5432,
           ssl,
-          connectionTimeoutMillis: 10000,
-          max: 10,
+          connectionTimeoutMillis: 8000,
+          idleTimeoutMillis: 5000,
+          max: 5,
         });
       }
 
@@ -174,6 +203,7 @@ export async function initStorage() {
       try {
         await client.query('SELECT 1');
         isPgActive = true;
+        pgLastError = null;
         const providerName = isSupabase ? 'Supabase PostgreSQL' : 'PostgreSQL Server';
         console.log(`[Storage] Connected to ${providerName} (${connectionString ? 'Connection String' : `${host}/${database}`}) with SSL: ${Boolean(ssl)}`);
 
@@ -317,10 +347,12 @@ export async function initStorage() {
     } catch (err: any) {
       console.warn('[Storage] PostgreSQL connection not available (' + err.message + '). Operating with in-memory fallback store.');
       isPgActive = false;
+      pgLastError = err.message || String(err);
     }
   } else {
-    console.log('[Storage] SQL_HOST not set. Operating with high-speed in-memory store.');
+    console.log('[Storage] DATABASE_URL / SQL_HOST not set. Operating with high-speed in-memory store.');
     isPgActive = false;
+    pgLastError = 'DATABASE_URL belum diatur di Environment Variables';
   }
 }
 
@@ -408,6 +440,7 @@ export const storage = {
 
   // Siswa
   async getAllSiswa(filterKelas?: string): Promise<SiswaRecord[]> {
+    await ensureConnection();
     if (isPgActive && pgPool) {
       let q = 'SELECT id, nisn, nama, jenis_kelamin as "jenisKelamin", tanggal_lahir as "tanggalLahir", agama, nama_ayah as "namaAyah", nama_ibu as "namaIbu", no_hp as "noHp", kelas, alamat FROM siswa';
       const params: any[] = [];
@@ -433,6 +466,7 @@ export const storage = {
 
   async findSiswaByNisn(nisn: string): Promise<SiswaRecord | null> {
     const clean = nisn.replace(/'/g, '').trim();
+    await ensureConnection();
     if (isPgActive && pgPool) {
       const res = await pgPool.query('SELECT id, nisn, nama, jenis_kelamin as "jenisKelamin", tanggal_lahir as "tanggalLahir", agama, nama_ayah as "namaAyah", nama_ibu as "namaIbu", no_hp as "noHp", kelas, alamat FROM siswa WHERE nisn = $1 LIMIT 1', [clean]);
       return res.rows[0] || null;
@@ -442,6 +476,7 @@ export const storage = {
 
   async createSiswa(s: Omit<SiswaRecord, 'id'>): Promise<SiswaRecord> {
     const cleanNisn = s.nisn.replace(/'/g, '').trim();
+    await ensureConnection();
     if (isPgActive && pgPool) {
       const res = await pgPool.query(
         'INSERT INTO siswa (nisn, nama, jenis_kelamin, tanggal_lahir, agama, nama_ayah, nama_ibu, no_hp, kelas, alamat) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
@@ -456,6 +491,7 @@ export const storage = {
 
   async updateSiswa(oldNisn: string, s: Partial<SiswaRecord>): Promise<void> {
     const cleanOld = oldNisn.replace(/'/g, '').trim();
+    await ensureConnection();
     if (isPgActive && pgPool) {
       await pgPool.query(
         'UPDATE siswa SET nama = COALESCE($1, nama), jenis_kelamin = COALESCE($2, jenis_kelamin), tanggal_lahir = COALESCE($3, tanggal_lahir), agama = COALESCE($4, agama), nama_ayah = COALESCE($5, nama_ayah), nama_ibu = COALESCE($6, nama_ibu), no_hp = COALESCE($7, no_hp), kelas = COALESCE($8, kelas), alamat = COALESCE($9, alamat) WHERE nisn = $10',
@@ -471,6 +507,7 @@ export const storage = {
 
   async deleteSiswa(nisn: string): Promise<void> {
     const clean = nisn.replace(/'/g, '').trim();
+    await ensureConnection();
     if (isPgActive && pgPool) {
       await pgPool.query('DELETE FROM siswa WHERE nisn = $1', [clean]);
       return;
@@ -772,7 +809,8 @@ export const storage = {
   },
 
   getDatabaseStatus() {
-    const connStr = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+    const rawConn = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+    const connStr = cleanConnectionString(rawConn);
     const host = process.env.SQL_HOST;
     const isSupabase = Boolean(connStr?.includes('supabase') || host?.includes('supabase'));
     return {
@@ -781,6 +819,8 @@ export const storage = {
       host: host || (connStr ? 'Supabase Connection URI' : 'Local Fallback'),
       database: process.env.SQL_DB_NAME || (connStr ? 'postgres (Supabase)' : 'absensi_db'),
       ssl: Boolean(isSupabase || process.env.SQL_SSL === 'true'),
+      hasEnv: Boolean(rawConn || host),
+      lastError: isPgActive ? null : pgLastError,
     };
   }
 };

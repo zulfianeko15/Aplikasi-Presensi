@@ -75,6 +75,18 @@ export default function App() {
   // Master Data Cache
   const [kelasList, setKelasList] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [dbStatus, setDbStatus] = useState<{ connected: boolean; provider: string; host?: string; lastError?: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/database/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success) {
+          setDbStatus(data);
+        }
+      })
+      .catch(console.error);
+  }, [refreshTrigger]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ type, message });
@@ -616,9 +628,22 @@ export default function App() {
               <h2 className="text-sm md:text-base font-bold text-slate-800 capitalize">
                 {activeView.replace('-', ' ')}
               </h2>
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>PostgreSQL Cloud SQL • Connected</span>
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold">
+                {dbStatus?.connected ? (
+                  <div className="flex items-center gap-1.5 text-emerald-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>{dbStatus.provider || 'Supabase PostgreSQL'} • Connected</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsDeployGuideOpen(true)}
+                    className="flex items-center gap-1.5 text-amber-600 hover:text-amber-700 underline cursor-pointer text-left"
+                    title={dbStatus?.lastError || 'Klik untuk cek konfigurasi Supabase'}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span>In-Memory (Supabase Belum Aktif) • Cek Panduan</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -665,6 +690,7 @@ export default function App() {
             <DataSiswaView
               kelasList={kelasList}
               showToast={showToast}
+              dbStatus={dbStatus}
             />
           )}
 
@@ -1666,7 +1692,7 @@ function DaftarHadirView({ currentUser, kelasList, showToast }: { currentUser: C
 // --------------------------------------------------------------------------
 // 3. DATA SISWA VIEW (CRUD, PDF CETAK KARTU, IMPORT EXCEL)
 // --------------------------------------------------------------------------
-function DataSiswaView({ kelasList, showToast }: { kelasList: string[]; showToast: any }) {
+function DataSiswaView({ kelasList, showToast, dbStatus }: { kelasList: string[]; showToast: any; dbStatus?: any }) {
   const [students, setStudents] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [filterKelas, setFilterKelas] = useState('');
@@ -1910,7 +1936,9 @@ function DataSiswaView({ kelasList, showToast }: { kelasList: string[]; showToas
       <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-3 bg-slate-50/50">
         <div>
           <h3 className="font-bold text-sm text-slate-800">Direktori Master Siswa</h3>
-          <p className="text-xs text-slate-400">Total data: {students.length} siswa tersimpan di PostgreSQL</p>
+          <p className="text-xs text-slate-400">
+            Total data: {students.length} siswa tersimpan di <span className={dbStatus?.connected ? "text-emerald-600 font-semibold" : "text-amber-600 font-semibold"}>{dbStatus?.connected ? 'Supabase PostgreSQL' : 'In-Memory Cache (Preview)'}</span>
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
