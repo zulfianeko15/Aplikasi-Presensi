@@ -2377,14 +2377,13 @@ function DataSiswaView({ kelasList, showToast, dbStatus }: { kelasList: string[]
       // Student Info
       doc.setTextColor(20, 20, 30);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.text(s.nama.substring(0, 22), x + 30, y + 22);
+      doc.setFontSize(8.5);
+      doc.text(s.nama.substring(0, 24), x + 30, y + 23);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      doc.text(`NISN  : ${s.nisn}`, x + 30, y + 28);
-      doc.text(`Kelas : ${s.kelas}`, x + 30, y + 33);
-      doc.text(`HP    : ${s.noHp || '-'}`, x + 30, y + 38);
+      doc.setFontSize(7.5);
+      doc.text(`NISN  : ${s.nisn}`, x + 30, y + 30);
+      doc.text(`Kelas : ${s.kelas}`, x + 30, y + 36);
 
       col++;
       if (col >= 2) {
